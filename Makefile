@@ -21,7 +21,7 @@ DEP = $(OBJ:%.o=%.d)
 all: $(BUILD_DIR)/$(TARGET)
 
 run: $(BUILD_DIR)/$(TARGET)
-	$(BUILD_DIR)/$(TARGET) $(PROG)
+	$(BUILD_DIR)/$(TARGET) $(ASM)
 
 clean:
 	rm -rf $(BUILD_DIR)
