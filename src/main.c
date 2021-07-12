@@ -3,12 +3,15 @@
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
+#include <stdint.h>
 
 #define NELEM(X) sizeof(X)/sizeof(X[0])
 
 /* TODO
-   * parse token sequence
+   * directives
    * pseudoinstructions
+   * labels
+   * output to file in binary
  */
 
 /* TODO: quotation marks for strings */
@@ -27,7 +30,7 @@ typedef enum {
     TOK_INVALID
 } token_typ_t;
 
-#if 1
+#if 0
 const char * token_strs[] = {
     "NULL",
     "DIR",
@@ -42,6 +45,132 @@ const char * token_strs[] = {
     "IDENT",
     "INVALID"
 };
+#endif
+
+typedef enum {
+    MNEM_LUI,
+    MNEM_AUIPC,
+    MNEM_JAL,
+    MNEM_JALR,
+    MNEM_BEQ,
+    MNEM_BNE,
+    MNEM_BLT,
+    MNEM_BGE,
+    MNEM_BLTU,
+    MNEM_BGEU,
+    MNEM_LB,
+    MNEM_LH,
+    MNEM_LW,
+    MNEM_LBU,
+    MNEM_LHU,
+    MNEM_SB,
+    MNEM_SH,
+    MNEM_SW,
+    MNEM_ADDI,
+    MNEM_SLTI,
+    MNEM_SLTIU,
+    MNEM_XORI,
+    MNEM_ORI,
+    MNEM_ANDI,
+    MNEM_SLLI,
+    MNEM_SRLI,
+    MNEM_SRAI,
+    MNEM_ADD,
+    MNEM_SUB,
+    MNEM_SLL,
+    MNEM_SLT,
+    MNEM_SLTU,
+    MNEM_XOR,
+    MNEM_SRL,
+    MNEM_SRA,
+    MNEM_OR,
+    MNEM_AND,
+    MNEM_FENCE,
+    MNEM_FENCE_I,
+    MNEM_ECALL,
+    MNEM_EBREAK,
+    MNEM_CSRRW,
+    MNEM_CSRRS,
+    MNEM_CSRRC,
+    MNEM_CSRRWI,
+    MNEM_CSRRSI,
+    MNEM_CSRRCI,
+    MNEM_INVALID,
+} mnemonic_t;
+
+#if 1
+// OFFSET: NUMBER or IDENT
+typedef enum {
+    FMT_NONE,
+    FMT_NONE_OR_IORW,           // fence [pred,succ]
+    FMT_REG_OFFSET_OR_OFFSET,   // jal [rd,]offset
+    FMT_REG_OFFSET,
+    FMT_REG_NUM,                // auipc rd,imm ; lui rd,imm ; li rd,imm
+    FMT_REG_REG_REG,
+    FMT_REG_REG_OFFSET,
+    FMT_REG_REG_NUM,            // slli rd,rs1,shamt
+    FMT_REG_NUM_REG,
+    FMT_INVALID
+} fmt_t;
+
+static fmt_t
+format_for_mnemonic(mnemonic_t mnemonic)
+{
+    switch (mnemonic) {
+        case MNEM_LUI:      return FMT_NONE;                    break;
+        case MNEM_AUIPC:    return FMT_REG_NUM;                 break;
+        case MNEM_JAL:      return FMT_REG_OFFSET_OR_OFFSET;    break;
+        case MNEM_JALR:     return FMT_REG_NUM_REG;             break;
+        case MNEM_BEQ:      return FMT_REG_REG_OFFSET;          break;
+        case MNEM_BNE:      return FMT_REG_REG_OFFSET;          break;
+        case MNEM_BLT:      return FMT_REG_REG_OFFSET;          break;
+        case MNEM_BGE:      return FMT_REG_REG_OFFSET;          break;
+        case MNEM_BLTU:     return FMT_REG_REG_OFFSET;          break;
+        case MNEM_BGEU:     return FMT_REG_REG_OFFSET;          break;
+        case MNEM_LB:       return FMT_REG_NUM_REG;             break;
+        case MNEM_LH:       return FMT_REG_NUM_REG;             break;
+        case MNEM_LW:       return FMT_REG_NUM_REG;             break;
+        case MNEM_LBU:      return FMT_REG_NUM_REG;             break;
+        case MNEM_LHU:      return FMT_REG_NUM_REG;             break;
+        case MNEM_SB:       return FMT_REG_NUM_REG;             break;
+        case MNEM_SH:       return FMT_REG_NUM_REG;             break;
+        case MNEM_SW:       return FMT_REG_NUM_REG;             break;
+        case MNEM_ADDI:     return FMT_REG_REG_NUM;             break;
+        case MNEM_SLTI:     return FMT_REG_REG_NUM;             break;
+        case MNEM_SLTIU:    return FMT_REG_REG_NUM;             break;
+        case MNEM_XORI:     return FMT_REG_REG_NUM;             break;
+        case MNEM_ORI:      return FMT_REG_REG_NUM;             break;
+        case MNEM_ANDI:     return FMT_REG_REG_NUM;             break;
+        case MNEM_SLLI:     return FMT_REG_REG_NUM;             break;
+        case MNEM_SRLI:     return FMT_REG_REG_NUM;             break;
+        case MNEM_SRAI:     return FMT_REG_REG_NUM;             break;
+        case MNEM_ADD:      return FMT_REG_REG_REG;             break;
+        case MNEM_SUB:      return FMT_REG_REG_REG;             break;
+        case MNEM_SLL:      return FMT_REG_REG_REG;             break;
+        case MNEM_SLT:      return FMT_REG_REG_REG;             break;
+        case MNEM_SLTU:     return FMT_REG_REG_REG;             break;
+        case MNEM_XOR:      return FMT_REG_REG_REG;             break;
+        case MNEM_SRL:      return FMT_REG_REG_REG;             break;
+        case MNEM_SRA:      return FMT_REG_REG_REG;             break;
+        case MNEM_OR:       return FMT_REG_REG_REG;             break;
+        case MNEM_AND:      return FMT_REG_REG_REG;             break;
+        case MNEM_FENCE:    return FMT_NONE_OR_IORW;            break;
+        case MNEM_FENCE_I:  return FMT_NONE;                    break;
+        case MNEM_ECALL:    return FMT_NONE;                    break;
+        case MNEM_EBREAK:   return FMT_NONE;                    break;
+        /* TODO: confirm csr* */
+        case MNEM_CSRRW:    return FMT_REG_REG_REG;             break;
+        case MNEM_CSRRS:    return FMT_REG_REG_REG;             break;
+        case MNEM_CSRRC:    return FMT_REG_REG_REG;             break;
+        case MNEM_CSRRWI:   return FMT_REG_REG_REG;             break;
+        case MNEM_CSRRSI:   return FMT_REG_REG_REG;             break;
+        case MNEM_CSRRCI:   return FMT_REG_REG_REG;             break;
+        case MNEM_INVALID:  assert(0);                          break;
+        default:            assert(0);                          break;
+    }
+    assert(0);
+    return FMT_INVALID;
+}
 #endif
 
 const char * mnemonics[] = {
@@ -95,6 +224,131 @@ const char * mnemonics[] = {
 };
 
 const size_t num_mnemonics = NELEM(mnemonics);
+
+uint32_t
+opcodes[] = {
+    0x00000037,
+	0x00000017,
+	0x0000006f,
+	0x00000067,
+	0x00000063,
+	0x00001063,
+	0x00004063,
+	0x00005063,
+	0x00006063,
+	0x00007063,
+	0x00000003,
+	0x00001003,
+	0x00002003,
+	0x00004003,
+	0x00005003,
+	0x00000023,
+	0x00001023,
+	0x00002023,
+	0x00000013,
+	0x00002013,
+	0x00003013,
+	0x00004013,
+	0x00006013,
+	0x00007013,
+	0x00001013,
+	0x00005013,
+	0x40005013,
+	0x00000033,
+	0x40000033,
+	0x00001033,
+	0x00002033,
+	0x00003033,
+	0x00004033,
+	0x00005033,
+	0x40005033,
+	0x00006033,
+	0x00007033,
+	0x0000000f,
+	0x0000100f,
+	0x00000073,
+	0x00100073,
+	0x00001073,
+	0x00002073,
+	0x00003073,
+	0x00005073,
+	0x00006073,
+	0x00007073
+};
+
+#if 0
+// mnem
+    MNEM_EBREAK,
+    MNEM_ECALL,
+    MNEM_FENCE, // TODO: pred, succ
+    MNEM_FENCE_I,
+
+// mnem imm (jal label)
+// TODO
+
+// mnem reg, imm
+    MNEM_LUI,
+    MNEM_AUIPC,
+    MNEM_JAL,
+
+// mnem reg, reg, reg
+    MNEM_ADD,
+    MNEM_OR,
+    MNEM_AND,
+    MNEM_SUB,
+    MNEM_XOR,
+    MNEM_SLL,
+    MNEM_SRL,
+    MNEM_SRA,
+    MNEM_SLT,
+    MNEM_SLTU,
+
+// mnem reg, reg, imm
+    MNEM_BEQ,
+    MNEM_BNE,
+    MNEM_BLT,
+    MNEM_BGE,
+    MNEM_BLTU,
+    MNEM_BGEU,
+    MNEM_ADDI,
+    MNEM_XORI,
+    MNEM_ORI,
+    MNEM_ANDI,
+    MNEM_SLTI,
+    MNEM_SLTIU,
+    MNEM_SLLI,
+    MNEM_SRLI,
+    MNEM_SRAI,
+
+// mnem reg, imm(reg)
+    MNEM_JALR,
+    MNEM_LB,
+    MNEM_LH,
+    MNEM_LW,
+    MNEM_LBU,
+    MNEM_LHU,
+    MNEM_SB,
+    MNEM_SH,
+    MNEM_SW,
+
+//    "csrrw",
+//    "csrrs",
+//    "csrrc",
+//    "csrrwi",
+//    "csrrsi",
+//    "csrrci"
+#endif 
+
+/* return index of element in list if present; otherwise, return n */
+static size_t
+str_idx_in_list(const char * str, const char * list[], ssize_t n)
+{
+    ssize_t i;
+    for (i = 0; i < n; i++)
+        if (strcmp(str, list[i]) == 0)
+            break;
+    return i;
+}
 
 const char * directives[] = {
     ".text",
@@ -152,6 +406,120 @@ const char * reg_names[] = {
 };
 
 const size_t num_reg_names = NELEM(reg_names);
+
+/* TODO: decide if this should detect invalid register names */
+static int
+reg_name_to_bits(const char * reg_name)
+{
+
+    if (reg_name[0] == 'x') {
+        int n = atoi(reg_name+1);
+        assert(n >= 0 && n <= 31);
+        return n;
+    }
+
+    if (reg_name[0] == 'a') {
+        int n = atoi(reg_name+1);
+        assert(n >= 0 && n <= 7);
+        return n+10;
+    }
+
+    if (reg_name[0] == 's') {
+        int n = atoi(reg_name+1);
+        assert(n >= 0 && n <= 11);
+        if (n <= 1)
+            return n+8;
+        else
+            return n-2+18;
+    }
+
+    if (reg_name[0] == 't') {
+        int n = atoi(reg_name+1);
+        assert(n >= 0 && n <= 6);
+        if (n <= 2)
+            return n+5;
+        else
+            return n-3+28;
+    }
+
+    /* TODO: remove redundant stuff below */
+    if (strcmp(reg_name, "x0") == 0) return 0;
+    if (strcmp(reg_name, "x1") == 0 || strcmp(reg_name, "ra") == 0) return 1;
+    if (strcmp(reg_name, "x2") == 0 || strcmp(reg_name, "sp") == 0) return 2;
+    if (strcmp(reg_name, "x3") == 0 || strcmp(reg_name, "gp") == 0) return 3;
+    if (strcmp(reg_name, "x4") == 0 || strcmp(reg_name, "tp") == 0) return 4;
+    if (strcmp(reg_name, "x5") == 0 || strcmp(reg_name, "t0") == 0) return 5;
+    if (strcmp(reg_name, "x6") == 0 || strcmp(reg_name, "t1") == 0) return 6;
+    if (strcmp(reg_name, "x7") == 0 || strcmp(reg_name, "t2") == 0) return 7;
+    if (strcmp(reg_name, "x8") == 0 || strcmp(reg_name, "s0") == 0 || strcmp(reg_name, "fp") == 0) return 8;
+    if (strcmp(reg_name, "x9") == 0 || strcmp(reg_name, "s1") == 0) return 9;
+    if (strcmp(reg_name, "x10") == 0 || strcmp(reg_name, "a0") == 0) return 10;
+    if (strcmp(reg_name, "x11") == 0 || strcmp(reg_name, "a1") == 0) return 11;
+    if (strcmp(reg_name, "x12") == 0 || strcmp(reg_name, "a2") == 0) return 12;
+    if (strcmp(reg_name, "x13") == 0 || strcmp(reg_name, "a3") == 0) return 13;
+    if (strcmp(reg_name, "x14") == 0 || strcmp(reg_name, "a4") == 0) return 14;
+    if (strcmp(reg_name, "x15") == 0 || strcmp(reg_name, "a5") == 0) return 15;
+    if (strcmp(reg_name, "x16") == 0 || strcmp(reg_name, "a6") == 0) return 16;
+    if (strcmp(reg_name, "x17") == 0 || strcmp(reg_name, "a7") == 0) return 17;
+    if (strcmp(reg_name, "x18") == 0 || strcmp(reg_name, "s2") == 0) return 18;
+    if (strcmp(reg_name, "x19") == 0 || strcmp(reg_name, "s3") == 0) return 19;
+    if (strcmp(reg_name, "x20") == 0 || strcmp(reg_name, "s4") == 0) return 20;
+    if (strcmp(reg_name, "x21") == 0 || strcmp(reg_name, "s5") == 0) return 21;
+    if (strcmp(reg_name, "x22") == 0 || strcmp(reg_name, "s6") == 0) return 22;
+    if (strcmp(reg_name, "x23") == 0 || strcmp(reg_name, "s7") == 0) return 23;
+    if (strcmp(reg_name, "x24") == 0 || strcmp(reg_name, "s8") == 0) return 24;
+    if (strcmp(reg_name, "x25") == 0 || strcmp(reg_name, "s9") == 0) return 25;
+    if (strcmp(reg_name, "x26") == 0 || strcmp(reg_name, "s10") == 0) return 26;
+    if (strcmp(reg_name, "x27") == 0 || strcmp(reg_name, "s11") == 0) return 27;
+    if (strcmp(reg_name, "x28") == 0 || strcmp(reg_name, "t3") == 0) return 28;
+    if (strcmp(reg_name, "x29") == 0 || strcmp(reg_name, "t4") == 0) return 29;
+    if (strcmp(reg_name, "x30") == 0 || strcmp(reg_name, "t5") == 0) return 30;
+    if (strcmp(reg_name, "x31") == 0 || strcmp(reg_name, "t6") == 0) return 31;
+
+    assert(0);
+    return 0;
+}
+
+/* TODO: create a macro for the common operation here */
+static uint32_t
+b_fmt_imm(uint32_t imm)
+{
+    uint32_t imm_fmt = 0;
+    imm_fmt |= ((imm >> 12) & 1) << 31;
+    imm_fmt |= ((imm >> 5) & 0x3f) << 25;
+    imm_fmt |= ((imm >> 1) & 0xf) << 8;
+    imm_fmt |= ((imm >> 11) & 0x1) << 7;
+    return imm_fmt;
+}
+
+static uint32_t
+i_fmt_imm(uint32_t imm)
+{
+    return (imm & 0xfff) << 20;
+}
+
+/* TODO */
+static uint32_t
+s_fmt_imm(uint32_t imm)
+{
+    uint32_t imm_fmt = 0;
+    imm_fmt |= ((imm >> 5) & 0x7f) << 25;
+    imm_fmt |= (imm & 0x1f) << 7;
+    return imm_fmt;
+}
+
+static uint32_t
+j_fmt_imm(uint32_t imm)
+{
+    //10987654321098765432
+    //wxxxxxxxxxxyzzzzzzzz
+    uint32_t imm_fmt = 0;
+    imm_fmt |= ((imm >> 20) & 1) << 19;
+    imm_fmt |= ((imm >> 1) & 0x3ff) << 9;
+    imm_fmt |= ((imm >> 11) & 1) << 8;
+    imm_fmt |= ((imm >> 12) & 0xff);
+    return imm_fmt << 12;
+}
 
 static int
 str_in_list(const char * str, const char * list[], size_t n)
@@ -458,55 +826,247 @@ valid forms:
    MNEM REG COMMA NUM LPAREN REG RPAREN
 */
 
+#if 0
+typedef enum {
+    SEQ_LABEL,
+    SEQ_DIR,
+    SEQ_DIR_IDENT,
+    SEQ_DIR_NUM,
+    SEQ_MNEM,
+    SEQ_MNEM_IDENT,
+    SEQ_MNEM_REG_IDENT,
+    SEQ_MNEM_REG_REG_REG,
+    SEQ_MNEM_REG_REG_IDENT,
+    SEQ_MNEM_REG_REG_NUM,
+    SEQ_MNEM_REG_NUM_REG,
+    SEQ_BLANK,
+    SEQ_INVALID
+} seq_type_t;
+
+token_typ_t
+valid_token_seqs[][10] = {
+    {TOK_IDENT, TOK_COLON,      TOK_NEWLINE},
+    {TOK_DIR,   TOK_NEWLINE},
+    {TOK_DIR,   TOK_IDENT,      TOK_NEWLINE},
+    {TOK_DIR,   TOK_NUMBER,     TOK_NEWLINE},
+    {TOK_MNEM,  TOK_NEWLINE},
+    {TOK_MNEM,  TOK_IDENT,      TOK_NEWLINE},
+    {TOK_MNEM,  TOK_REG,        TOK_COMMA,      TOK_IDENT,  TOK_NEWLINE},
+    {TOK_MNEM,  TOK_REG,        TOK_COMMA,      TOK_REG,    TOK_COMMA,      TOK_REG,    TOK_NEWLINE},
+    {TOK_MNEM,  TOK_REG,        TOK_COMMA,      TOK_REG,    TOK_COMMA,      TOK_IDENT,  TOK_NEWLINE},
+    {TOK_MNEM,  TOK_REG,        TOK_COMMA,      TOK_REG,    TOK_COMMA,      TOK_NUMBER, TOK_NEWLINE},
+    {TOK_MNEM,  TOK_REG,        TOK_COMMA,      TOK_NUMBER, TOK_LPAREN,     TOK_REG,    TOK_RPAREN, TOK_NEWLINE},
+    {TOK_NEWLINE}
+};
+
+const size_t num_valid_token_seqs = NELEM(valid_token_seqs);
+#endif
+
 #if 1
+/* TODO: separate parsing from outputting */
 static void
 parse(const char * buffer)
 {
+//    size_t i, j;
     token_t tokens[10];
     token_t t0;
     size_t ti;
+    int ln = 0;
     while (1) {
+        ln++;
         ti = 0;
+        tokens[0].t = TOK_NEWLINE; // TODO: this is a hack
         while (t0 = get_token(buffer), t0.t != TOK_NEWLINE && t0.t != TOK_NULL) {
             assert(ti < 10);
             memcpy(tokens+ti, &t0, sizeof(token_t));
             ti++;
             //printf("%s (%s) ", token_strs[t0.t], t0.s);
-
         }
 
-        if (ti == 1 && tokens[0].t == TOK_DIR) {
-            printf("directive\n");
-        } else if (ti == 2 && tokens[0].t == TOK_DIR && tokens[1].t == TOK_IDENT) {
-            printf("directive identifier\n");
-        } else if (ti == 2 && tokens[0].t == TOK_DIR && tokens[1].t == TOK_NUMBER) {
-            printf("directive number\n");
-        } else if (ti == 2 && tokens[0].t == TOK_IDENT && tokens[1].t == TOK_COLON) {
-            printf("label\n");
-        } else if (ti == 1 && tokens[0].t == TOK_MNEM) {
-            printf("mnemonic\n");
-        } else if (ti == 4 && tokens[0].t == TOK_MNEM && tokens[1].t == TOK_REG && tokens[2].t == TOK_COMMA && tokens[3].t == TOK_IDENT) {
-            printf("mnem reg, ident\n");
-        } else if (ti == 6 && tokens[0].t == TOK_MNEM && tokens[1].t == TOK_REG && tokens[2].t == TOK_COMMA && tokens[3].t == TOK_REG && tokens[4].t == TOK_COMMA && tokens[5].t == TOK_IDENT) {
-            printf("mnem reg, reg, ident\n");
-        } else if (ti == 6 && tokens[0].t == TOK_MNEM && tokens[1].t == TOK_REG && tokens[2].t == TOK_COMMA && tokens[3].t == TOK_REG && tokens[4].t == TOK_COMMA && tokens[5].t == TOK_NUMBER) {
-            printf("mnem reg, reg, number\n");
-        } else if (ti == 6 && tokens[0].t == TOK_MNEM && tokens[1].t == TOK_REG && tokens[2].t == TOK_COMMA && tokens[3].t == TOK_REG && tokens[4].t == TOK_COMMA && tokens[5].t == TOK_REG) {
-            printf("mnem reg, reg, reg\n");
-        } else if (ti == 7 && tokens[0].t == TOK_MNEM && tokens[1].t == TOK_REG && tokens[2].t == TOK_COMMA && tokens[3].t == TOK_NUMBER && tokens[4].t == TOK_LPAREN && tokens[5].t == TOK_REG && tokens[6].t == TOK_RPAREN) {
-            printf("mnem reg, num(reg)\n");
-        } else if (ti == 0) {
-            printf("blank\n");
-        } else {
-            printf("other: \n");
-            size_t i;
-            for (i=0; i<ti; i++) {
-                printf("%s (%s) ", token_strs[tokens[i].t], tokens[i].s);
+        size_t num_tokens = ti;
+
+#if 0
+        for (i = 0; i < num_valid_token_seqs; i++) {
+            const size_t n_max = NELEM(valid_token_seqs[0]);
+            size_t n = 0;
+            for (j = 0; j < n_max; j++) {
+                if (valid_token_seqs[i][j] == TOK_NEWLINE)
+                    break;
+                n++;
             }
-            printf("\n");
+            if (ti == n) {
+                int equal = 1;
+                for (j = 0; j < ti; j++) {
+                    if (tokens[j].t != valid_token_seqs[i][j]) {
+                        equal = 0;
+                        break;
+                    }
+                }
+                if (equal) {
+                    break;
+                }
+            }
         }
 
-        //printf("\n");
+        seq_type_t seq_type = i;
+#endif
+
+        uint32_t opcode;
+        if (tokens[0].t == TOK_MNEM) {
+
+            mnemonic_t mnemonic = str_idx_in_list(tokens[0].s, mnemonics, num_mnemonics);
+
+            assert(mnemonic != MNEM_INVALID); // TODO: error handling
+
+            opcode = opcodes[mnemonic];
+
+            fmt_t fmt = format_for_mnemonic(mnemonic);
+
+            uint32_t rd, rs1, rs2, imm;
+            uint32_t imm_fmt;
+
+            switch (fmt) {
+                case FMT_NONE:
+                    break;
+
+                case FMT_NONE_OR_IORW:
+                    break;
+
+                case FMT_REG_OFFSET_OR_OFFSET:
+                    if (num_tokens == 4) {
+                        rd = reg_name_to_bits(tokens[1].s);
+                        if (tokens[3].t == TOK_NUMBER)
+                            imm = atoi(tokens[3].s);
+                        else
+                            imm = 0; // TODO
+                    } else if (num_tokens == 2) {
+                        rd = reg_name_to_bits("x1");
+                        if (tokens[1].t == TOK_NUMBER)
+                            imm = atoi(tokens[1].s);
+                        else
+                            imm = 0; // TODO
+                    }
+                    imm_fmt = j_fmt_imm(imm);
+                    opcode |= imm_fmt | (rd << 7);
+                    break;
+
+                case FMT_REG_OFFSET:
+                    assert(0);
+                    break;
+
+                case FMT_REG_NUM:
+                    assert(0);
+                    break;
+
+                case FMT_REG_REG_REG:
+                    rd  = reg_name_to_bits(tokens[1].s);
+                    rs1 = reg_name_to_bits(tokens[3].s);
+                    rs2 = reg_name_to_bits(tokens[5].s);
+                    opcode |= (rs2 << 20) | (rs1 << 15) | (rd << 7);
+                    break;
+
+                case FMT_REG_REG_OFFSET:
+                    rs1 = reg_name_to_bits(tokens[1].s);
+                    rs2 = reg_name_to_bits(tokens[3].s);
+                    if (tokens[5].t == TOK_NUMBER)
+                        imm = atoi(tokens[5].s);
+                    else
+                        imm = 0; // TODO
+                    imm_fmt = b_fmt_imm(imm);
+                    opcode |= imm_fmt | (rs2 << 20) | (rs1 << 15);
+                    break;
+
+                case FMT_REG_REG_NUM:
+                    rd = reg_name_to_bits(tokens[1].s);
+                    rs1 = reg_name_to_bits(tokens[3].s);
+                    imm = atoi(tokens[5].s);
+                    opcode |= (imm << 20) | (rs1 << 15) | (rd << 7);
+                    break;
+
+                case FMT_REG_NUM_REG:
+                    imm = atoi(tokens[3].s);
+                    rs1 = reg_name_to_bits(tokens[5].s);
+                    if (mnemonic == MNEM_SW) {
+                        rs2 = reg_name_to_bits(tokens[1].s);
+                        imm_fmt = s_fmt_imm(imm);
+                        opcode |= imm_fmt | (rs2 << 20) | (rs1 << 15);
+                    } else {
+                        rd = reg_name_to_bits(tokens[1].s);
+                        imm_fmt = i_fmt_imm(imm);
+                        opcode |= imm_fmt | (rs1 << 15) | (rd << 7);
+                    }
+                    break;
+
+                    break;
+
+                case FMT_INVALID:
+                    break;
+
+                default:
+                    //assert(0);
+                    break;
+            }
+
+            printf("0x%08x\n", opcode);
+
+        } else if (tokens[0].t == TOK_DIR) {
+        } else if (tokens[0].t == TOK_IDENT) {
+        } else if (tokens[0].t == TOK_NEWLINE) {
+        }
+
+#if 0
+        switch (seq_type) {
+            case SEQ_LABEL:
+                /* TODO: add label to symbol tabel */
+                break;
+            case SEQ_DIR:
+                /* TODO: interpret directive */
+                break;
+            case SEQ_DIR_IDENT:
+                /* TODO: interpret directive */
+                break;
+            case SEQ_DIR_NUM:
+                /* TODO: interpret directive */
+                break;
+            case SEQ_MNEM:
+                printf("%08x\n", opcode);
+                //if (strcmp(tokens[0].s, "ebreak") == 0) {
+                //    printf("%08x\n", MNEM_EBREAK);
+                //}
+                break;
+            case SEQ_MNEM_IDENT:
+                printf("%08x\n", opcode);
+                break;
+            case SEQ_MNEM_REG_IDENT:
+                printf("%08x\n", opcode);
+                //if (strcmp(tokens[0].s, "jal") == 0) {
+                //}
+                break;
+            case SEQ_MNEM_REG_REG_IDENT:
+                printf("%08x\n", opcode);
+                break;
+            case SEQ_MNEM_REG_REG_REG:
+                printf("%08x\n", opcode);
+                break;
+            case SEQ_MNEM_REG_REG_NUM:
+                printf("%08x\n", opcode);
+                break;
+            case SEQ_MNEM_REG_NUM_REG:
+                printf("%08x\n", opcode);
+                break;
+            case SEQ_BLANK:
+                break;
+            case SEQ_INVALID:
+                /* TODO: handle errors */
+                fprintf(stdout, "parsing error\n");
+                exit(1);
+                break;
+            default:
+                assert(0);
+                break;
+        }
+#endif
+
         if (t0.t == TOK_NULL)
             break;
     }
