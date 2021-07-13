@@ -12,6 +12,9 @@
    * pseudoinstructions
    * labels
    * output to file in binary
+   * parse hex literals
+   * string literals
+   * %hi, %lo?
  */
 
 /* TODO: quotation marks for strings */
@@ -20,6 +23,7 @@ typedef enum {
     TOK_DIR,
     TOK_MNEM,
     TOK_REG,
+    TOK_CSR, // TODO
     TOK_COMMA,
     TOK_COLON,
     TOK_LPAREN,
@@ -36,6 +40,7 @@ const char * token_strs[] = {
     "DIR",
     "MNEM",
     "REG",
+    "CSR",
     "COMMA",
     "COLON",
     "LPAREN",
@@ -104,12 +109,13 @@ typedef enum {
     FMT_NONE,
     FMT_NONE_OR_IORW,           // fence [pred,succ]
     FMT_REG_OFFSET_OR_OFFSET,   // jal [rd,]offset
-    FMT_REG_OFFSET,
     FMT_REG_NUM,                // auipc rd,imm ; lui rd,imm ; li rd,imm
     FMT_REG_REG_REG,
     FMT_REG_REG_OFFSET,
     FMT_REG_REG_NUM,            // slli rd,rs1,shamt
     FMT_REG_NUM_REG,
+    FMT_REG_CSR_REG,
+    FMT_REG_CSR_NUM,
     FMT_INVALID
 } fmt_t;
 
@@ -117,7 +123,7 @@ static fmt_t
 format_for_mnemonic(mnemonic_t mnemonic)
 {
     switch (mnemonic) {
-        case MNEM_LUI:      return FMT_NONE;                    break;
+        case MNEM_LUI:      return FMT_REG_NUM;                 break;
         case MNEM_AUIPC:    return FMT_REG_NUM;                 break;
         case MNEM_JAL:      return FMT_REG_OFFSET_OR_OFFSET;    break;
         case MNEM_JALR:     return FMT_REG_NUM_REG;             break;
@@ -159,12 +165,12 @@ format_for_mnemonic(mnemonic_t mnemonic)
         case MNEM_ECALL:    return FMT_NONE;                    break;
         case MNEM_EBREAK:   return FMT_NONE;                    break;
         /* TODO: confirm csr* */
-        case MNEM_CSRRW:    return FMT_REG_REG_REG;             break;
-        case MNEM_CSRRS:    return FMT_REG_REG_REG;             break;
-        case MNEM_CSRRC:    return FMT_REG_REG_REG;             break;
-        case MNEM_CSRRWI:   return FMT_REG_REG_REG;             break;
-        case MNEM_CSRRSI:   return FMT_REG_REG_REG;             break;
-        case MNEM_CSRRCI:   return FMT_REG_REG_REG;             break;
+        case MNEM_CSRRW:    return FMT_REG_CSR_REG;             break;
+        case MNEM_CSRRS:    return FMT_REG_CSR_REG;             break;
+        case MNEM_CSRRC:    return FMT_REG_CSR_REG;             break;
+        case MNEM_CSRRWI:   return FMT_REG_CSR_NUM;             break;
+        case MNEM_CSRRSI:   return FMT_REG_CSR_NUM;             break;
+        case MNEM_CSRRCI:   return FMT_REG_CSR_NUM;             break;
         case MNEM_INVALID:  assert(0);                          break;
         default:            assert(0);                          break;
     }
@@ -276,69 +282,6 @@ opcodes[] = {
 	0x00007073
 };
 
-#if 0
-// mnem
-    MNEM_EBREAK,
-    MNEM_ECALL,
-    MNEM_FENCE, // TODO: pred, succ
-    MNEM_FENCE_I,
-
-// mnem imm (jal label)
-// TODO
-
-// mnem reg, imm
-    MNEM_LUI,
-    MNEM_AUIPC,
-    MNEM_JAL,
-
-// mnem reg, reg, reg
-    MNEM_ADD,
-    MNEM_OR,
-    MNEM_AND,
-    MNEM_SUB,
-    MNEM_XOR,
-    MNEM_SLL,
-    MNEM_SRL,
-    MNEM_SRA,
-    MNEM_SLT,
-    MNEM_SLTU,
-
-// mnem reg, reg, imm
-    MNEM_BEQ,
-    MNEM_BNE,
-    MNEM_BLT,
-    MNEM_BGE,
-    MNEM_BLTU,
-    MNEM_BGEU,
-    MNEM_ADDI,
-    MNEM_XORI,
-    MNEM_ORI,
-    MNEM_ANDI,
-    MNEM_SLTI,
-    MNEM_SLTIU,
-    MNEM_SLLI,
-    MNEM_SRLI,
-    MNEM_SRAI,
-
-// mnem reg, imm(reg)
-    MNEM_JALR,
-    MNEM_LB,
-    MNEM_LH,
-    MNEM_LW,
-    MNEM_LBU,
-    MNEM_LHU,
-    MNEM_SB,
-    MNEM_SH,
-    MNEM_SW,
-
-//    "csrrw",
-//    "csrrs",
-//    "csrrc",
-//    "csrrwi",
-//    "csrrsi",
-//    "csrrci"
-#endif 
-
 /* return index of element in list if present; otherwise, return n */
 static size_t
 str_idx_in_list(const char * str, const char * list[], ssize_t n)
@@ -407,76 +350,54 @@ const char * reg_names[] = {
 
 const size_t num_reg_names = NELEM(reg_names);
 
+const char * csr_names[] = {
+    "mstatus"
+};
+
+const size_t num_csr_names = NELEM(csr_names);
+
 /* TODO: decide if this should detect invalid register names */
 static int
 reg_name_to_bits(const char * reg_name)
 {
+    assert(reg_name[0] != '\0' && reg_name[1] != '\0');
 
     if (reg_name[0] == 'x') {
         int n = atoi(reg_name+1);
         assert(n >= 0 && n <= 31);
         return n;
-    }
-
-    if (reg_name[0] == 'a') {
+    } else if (strcmp(reg_name, "ra") == 0) {
+        return 1;
+    } else if (strcmp(reg_name, "sp") == 0) {
+        return 2;
+    } else if (strcmp(reg_name, "gp") == 0) {
+        return 3;
+    } else if (strcmp(reg_name, "tp") == 0) {
+        return 4;
+    } else if (strcmp(reg_name, "fp") == 0) {
+        return 8;
+    } else if (reg_name[0] == 'a') {
         int n = atoi(reg_name+1);
         assert(n >= 0 && n <= 7);
         return n+10;
-    }
-
-    if (reg_name[0] == 's') {
+    } else if (reg_name[0] == 's') {
         int n = atoi(reg_name+1);
         assert(n >= 0 && n <= 11);
         if (n <= 1)
             return n+8;
         else
             return n-2+18;
-    }
-
-    if (reg_name[0] == 't') {
+    } else if (reg_name[0] == 't') {
         int n = atoi(reg_name+1);
         assert(n >= 0 && n <= 6);
         if (n <= 2)
             return n+5;
         else
             return n-3+28;
+    } else {
+        assert(0);
     }
 
-    /* TODO: remove redundant stuff below */
-    if (strcmp(reg_name, "x0") == 0) return 0;
-    if (strcmp(reg_name, "x1") == 0 || strcmp(reg_name, "ra") == 0) return 1;
-    if (strcmp(reg_name, "x2") == 0 || strcmp(reg_name, "sp") == 0) return 2;
-    if (strcmp(reg_name, "x3") == 0 || strcmp(reg_name, "gp") == 0) return 3;
-    if (strcmp(reg_name, "x4") == 0 || strcmp(reg_name, "tp") == 0) return 4;
-    if (strcmp(reg_name, "x5") == 0 || strcmp(reg_name, "t0") == 0) return 5;
-    if (strcmp(reg_name, "x6") == 0 || strcmp(reg_name, "t1") == 0) return 6;
-    if (strcmp(reg_name, "x7") == 0 || strcmp(reg_name, "t2") == 0) return 7;
-    if (strcmp(reg_name, "x8") == 0 || strcmp(reg_name, "s0") == 0 || strcmp(reg_name, "fp") == 0) return 8;
-    if (strcmp(reg_name, "x9") == 0 || strcmp(reg_name, "s1") == 0) return 9;
-    if (strcmp(reg_name, "x10") == 0 || strcmp(reg_name, "a0") == 0) return 10;
-    if (strcmp(reg_name, "x11") == 0 || strcmp(reg_name, "a1") == 0) return 11;
-    if (strcmp(reg_name, "x12") == 0 || strcmp(reg_name, "a2") == 0) return 12;
-    if (strcmp(reg_name, "x13") == 0 || strcmp(reg_name, "a3") == 0) return 13;
-    if (strcmp(reg_name, "x14") == 0 || strcmp(reg_name, "a4") == 0) return 14;
-    if (strcmp(reg_name, "x15") == 0 || strcmp(reg_name, "a5") == 0) return 15;
-    if (strcmp(reg_name, "x16") == 0 || strcmp(reg_name, "a6") == 0) return 16;
-    if (strcmp(reg_name, "x17") == 0 || strcmp(reg_name, "a7") == 0) return 17;
-    if (strcmp(reg_name, "x18") == 0 || strcmp(reg_name, "s2") == 0) return 18;
-    if (strcmp(reg_name, "x19") == 0 || strcmp(reg_name, "s3") == 0) return 19;
-    if (strcmp(reg_name, "x20") == 0 || strcmp(reg_name, "s4") == 0) return 20;
-    if (strcmp(reg_name, "x21") == 0 || strcmp(reg_name, "s5") == 0) return 21;
-    if (strcmp(reg_name, "x22") == 0 || strcmp(reg_name, "s6") == 0) return 22;
-    if (strcmp(reg_name, "x23") == 0 || strcmp(reg_name, "s7") == 0) return 23;
-    if (strcmp(reg_name, "x24") == 0 || strcmp(reg_name, "s8") == 0) return 24;
-    if (strcmp(reg_name, "x25") == 0 || strcmp(reg_name, "s9") == 0) return 25;
-    if (strcmp(reg_name, "x26") == 0 || strcmp(reg_name, "s10") == 0) return 26;
-    if (strcmp(reg_name, "x27") == 0 || strcmp(reg_name, "s11") == 0) return 27;
-    if (strcmp(reg_name, "x28") == 0 || strcmp(reg_name, "t3") == 0) return 28;
-    if (strcmp(reg_name, "x29") == 0 || strcmp(reg_name, "t4") == 0) return 29;
-    if (strcmp(reg_name, "x30") == 0 || strcmp(reg_name, "t5") == 0) return 30;
-    if (strcmp(reg_name, "x31") == 0 || strcmp(reg_name, "t6") == 0) return 31;
-
-    assert(0);
     return 0;
 }
 
@@ -498,7 +419,12 @@ i_fmt_imm(uint32_t imm)
     return (imm & 0xfff) << 20;
 }
 
-/* TODO */
+static uint32_t
+u_fmt_imm(uint32_t imm)
+{
+    return (imm & 0xfffff) << 12;
+}
+
 static uint32_t
 s_fmt_imm(uint32_t imm)
 {
@@ -511,8 +437,6 @@ s_fmt_imm(uint32_t imm)
 static uint32_t
 j_fmt_imm(uint32_t imm)
 {
-    //10987654321098765432
-    //wxxxxxxxxxxyzzzzzzzz
     uint32_t imm_fmt = 0;
     imm_fmt |= ((imm >> 20) & 1) << 19;
     imm_fmt |= ((imm >> 1) & 0x3ff) << 9;
@@ -543,6 +467,12 @@ is_reg(const char * s)
     return str_in_list(s, reg_names, num_reg_names);
 }
 
+static int
+is_csr(const char * s)
+{
+    return str_in_list(s, csr_names, num_csr_names);
+}
+
 typedef enum {
     ST_INIT,
     ST_PERIOD,
@@ -557,6 +487,7 @@ typedef enum {
     ST_ERR
 } state_t;
 
+#if 0
 const char * state_strs[] = {
     "INIT",
     "PERIOD",
@@ -570,6 +501,7 @@ const char * state_strs[] = {
     "ALPHA",
     "ERR"
 };
+#endif
 
 static state_t
 common_next_state(char c)
@@ -665,6 +597,8 @@ next_char(char c)
             if (next_state != ST_ALPHA) {
                 if (is_reg(curr_token))
                     tok_typ = TOK_REG;
+                else if (is_csr(curr_token))
+                    tok_typ = TOK_CSR;
                 else if (is_mnemonic(curr_token))
                     tok_typ = TOK_MNEM;
                 else
@@ -770,45 +704,6 @@ get_token(const char * buffer)
     return tok;
 }
 
-#if 0
-static void
-parse(const char * buffer)
-{
-    token_t t0;
-    while (t0 = get_token(buffer), t0.t != TOK_NULL) {
-        printf("%s (%s) ", token_strs[t0.t], t0.s);
-    }
-}
-#endif
-
-#if 0
-
-typedef enum {
-    PST_INIT,
-    PST_I,
-    PST_I_CL,
-    PST_D,
-    PST_D_N,
-    PST_D_I,
-    PST_M,
-    PST_M_R,
-//  PST_M_I,        // TODO: jal label
-    PST_M_R_CM,
-    PST_M_R_CM_I,
-    PST_M_R_CM_R,
-    PST_M_R_CM_R_CM,
-    PST_M_R_CM_R_CM_I,
-    PST_M_R_CM_R_CM_R,
-    PST_M_R_CM_R_CM_N,
-    PST_M_R_CM_N,
-    PST_M_R_CM_N_LP,
-    PST_M_R_CM_N_LP_R,
-    PST_M_R_CM_N_LP_R_RP,
-    PST_ERR
-} parse_state_t;
-
-#endif
-
 /*
 TODO: lists for .byte, .half, etc. 
 
@@ -826,48 +721,43 @@ valid forms:
    MNEM REG COMMA NUM LPAREN REG RPAREN
 */
 
-#if 0
+typedef struct {
+    const char * s;
+    uint32_t addr;
+} symbol_t;
+
+// TODO
 typedef enum {
-    SEQ_LABEL,
-    SEQ_DIR,
-    SEQ_DIR_IDENT,
-    SEQ_DIR_NUM,
-    SEQ_MNEM,
-    SEQ_MNEM_IDENT,
-    SEQ_MNEM_REG_IDENT,
-    SEQ_MNEM_REG_REG_REG,
-    SEQ_MNEM_REG_REG_IDENT,
-    SEQ_MNEM_REG_REG_NUM,
-    SEQ_MNEM_REG_NUM_REG,
-    SEQ_BLANK,
-    SEQ_INVALID
-} seq_type_t;
+    REF_J,
+    REF_B
+} ref_type_t;
 
-token_typ_t
-valid_token_seqs[][10] = {
-    {TOK_IDENT, TOK_COLON,      TOK_NEWLINE},
-    {TOK_DIR,   TOK_NEWLINE},
-    {TOK_DIR,   TOK_IDENT,      TOK_NEWLINE},
-    {TOK_DIR,   TOK_NUMBER,     TOK_NEWLINE},
-    {TOK_MNEM,  TOK_NEWLINE},
-    {TOK_MNEM,  TOK_IDENT,      TOK_NEWLINE},
-    {TOK_MNEM,  TOK_REG,        TOK_COMMA,      TOK_IDENT,  TOK_NEWLINE},
-    {TOK_MNEM,  TOK_REG,        TOK_COMMA,      TOK_REG,    TOK_COMMA,      TOK_REG,    TOK_NEWLINE},
-    {TOK_MNEM,  TOK_REG,        TOK_COMMA,      TOK_REG,    TOK_COMMA,      TOK_IDENT,  TOK_NEWLINE},
-    {TOK_MNEM,  TOK_REG,        TOK_COMMA,      TOK_REG,    TOK_COMMA,      TOK_NUMBER, TOK_NEWLINE},
-    {TOK_MNEM,  TOK_REG,        TOK_COMMA,      TOK_NUMBER, TOK_LPAREN,     TOK_REG,    TOK_RPAREN, TOK_NEWLINE},
-    {TOK_NEWLINE}
-};
+typedef struct {
+    const char * s;
+    ref_type_t t;
+    uint32_t addr;
+} ref_t;
 
-const size_t num_valid_token_seqs = NELEM(valid_token_seqs);
-#endif
-
-#if 1
 /* TODO: separate parsing from outputting */
 static void
 parse(const char * buffer)
 {
-//    size_t i, j;
+
+    // TODO: should be a dict
+    size_t num_symbols = 0;
+    size_t symbols_cap = 10;
+    symbol_t * symbols = malloc(sizeof(*symbols)*symbols_cap);
+
+    size_t num_refs = 0;
+    size_t refs_cap = 10;
+    ref_t * refs = malloc(sizeof(*refs)*refs_cap);
+
+    uint32_t output[1024];
+    size_t num_words = 0;
+
+    uint32_t curr_addr = 0;
+
+    size_t i;
     token_t tokens[10];
     token_t t0;
     size_t ti;
@@ -885,32 +775,6 @@ parse(const char * buffer)
 
         size_t num_tokens = ti;
 
-#if 0
-        for (i = 0; i < num_valid_token_seqs; i++) {
-            const size_t n_max = NELEM(valid_token_seqs[0]);
-            size_t n = 0;
-            for (j = 0; j < n_max; j++) {
-                if (valid_token_seqs[i][j] == TOK_NEWLINE)
-                    break;
-                n++;
-            }
-            if (ti == n) {
-                int equal = 1;
-                for (j = 0; j < ti; j++) {
-                    if (tokens[j].t != valid_token_seqs[i][j]) {
-                        equal = 0;
-                        break;
-                    }
-                }
-                if (equal) {
-                    break;
-                }
-            }
-        }
-
-        seq_type_t seq_type = i;
-#endif
-
         uint32_t opcode;
         if (tokens[0].t == TOK_MNEM) {
 
@@ -922,14 +786,14 @@ parse(const char * buffer)
 
             fmt_t fmt = format_for_mnemonic(mnemonic);
 
-            uint32_t rd, rs1, rs2, imm;
-            uint32_t imm_fmt;
+            uint32_t rd, rs1, rs2, imm, imm_fmt;
 
             switch (fmt) {
                 case FMT_NONE:
                     break;
 
                 case FMT_NONE_OR_IORW:
+                    /* TODO */
                     break;
 
                 case FMT_REG_OFFSET_OR_OFFSET:
@@ -937,25 +801,33 @@ parse(const char * buffer)
                         rd = reg_name_to_bits(tokens[1].s);
                         if (tokens[3].t == TOK_NUMBER)
                             imm = atoi(tokens[3].s);
-                        else
-                            imm = 0; // TODO
                     } else if (num_tokens == 2) {
                         rd = reg_name_to_bits("x1");
                         if (tokens[1].t == TOK_NUMBER)
                             imm = atoi(tokens[1].s);
-                        else
-                            imm = 0; // TODO
                     }
+
+                    if ((num_tokens == 2 && tokens[1].t == TOK_IDENT) ||
+                        (num_tokens == 4 && tokens[3].t == TOK_IDENT)) {
+                        refs[num_refs].s = strdup(tokens[3].s);
+                        refs[num_refs].t = REF_J;
+                        refs[num_refs].addr = curr_addr;
+                        num_refs++;
+                        if (num_refs >= refs_cap) {
+                            refs_cap *= 2;
+                            refs = realloc(refs, sizeof(*refs)*refs_cap);
+                        }
+                        imm = 0; // TODO
+                    }
+
                     imm_fmt = j_fmt_imm(imm);
                     opcode |= imm_fmt | (rd << 7);
                     break;
 
-                case FMT_REG_OFFSET:
-                    assert(0);
-                    break;
-
                 case FMT_REG_NUM:
-                    assert(0);
+                    rd  = reg_name_to_bits(tokens[1].s);
+                    imm = atoi(tokens[3].s);
+                    opcode |= u_fmt_imm(imm) | (rd << 7);
                     break;
 
                 case FMT_REG_REG_REG:
@@ -970,8 +842,17 @@ parse(const char * buffer)
                     rs2 = reg_name_to_bits(tokens[3].s);
                     if (tokens[5].t == TOK_NUMBER)
                         imm = atoi(tokens[5].s);
-                    else
+                    else {
+                        refs[num_refs].s = strdup(tokens[5].s);
+                        refs[num_refs].t = REF_B;
+                        refs[num_refs].addr = curr_addr;
+                        num_refs++;
+                        if (num_refs >= refs_cap) {
+                            refs_cap *= 2;
+                            refs = realloc(refs, sizeof(*refs)*refs_cap);
+                        }
                         imm = 0; // TODO
+                    }
                     imm_fmt = b_fmt_imm(imm);
                     opcode |= imm_fmt | (rs2 << 20) | (rs1 << 15);
                     break;
@@ -1007,71 +888,99 @@ parse(const char * buffer)
                     break;
             }
 
-            printf("0x%08x\n", opcode);
+            assert(curr_addr/4 < NELEM(output));
+            output[curr_addr/4] = opcode;
+            num_words = curr_addr/4;
+
+            //printf("%02x: 0x%08x\n", curr_addr, opcode);
+            curr_addr += 4;
 
         } else if (tokens[0].t == TOK_DIR) {
         } else if (tokens[0].t == TOK_IDENT) {
+
+            assert(num_tokens == 2 && tokens[1].t == TOK_COLON); // TODO: error checking
+
+            // TODO: check if the symbol is already defined
+            symbols[num_symbols].s = strdup(tokens[0].s);
+            symbols[num_symbols].addr = curr_addr;
+            num_symbols++;
+            if (num_symbols >= symbols_cap) {
+                symbols_cap *= 2;
+                symbols = realloc(symbols, sizeof(*symbols)*symbols_cap);
+            }
+
         } else if (tokens[0].t == TOK_NEWLINE) {
         }
-
-#if 0
-        switch (seq_type) {
-            case SEQ_LABEL:
-                /* TODO: add label to symbol tabel */
-                break;
-            case SEQ_DIR:
-                /* TODO: interpret directive */
-                break;
-            case SEQ_DIR_IDENT:
-                /* TODO: interpret directive */
-                break;
-            case SEQ_DIR_NUM:
-                /* TODO: interpret directive */
-                break;
-            case SEQ_MNEM:
-                printf("%08x\n", opcode);
-                //if (strcmp(tokens[0].s, "ebreak") == 0) {
-                //    printf("%08x\n", MNEM_EBREAK);
-                //}
-                break;
-            case SEQ_MNEM_IDENT:
-                printf("%08x\n", opcode);
-                break;
-            case SEQ_MNEM_REG_IDENT:
-                printf("%08x\n", opcode);
-                //if (strcmp(tokens[0].s, "jal") == 0) {
-                //}
-                break;
-            case SEQ_MNEM_REG_REG_IDENT:
-                printf("%08x\n", opcode);
-                break;
-            case SEQ_MNEM_REG_REG_REG:
-                printf("%08x\n", opcode);
-                break;
-            case SEQ_MNEM_REG_REG_NUM:
-                printf("%08x\n", opcode);
-                break;
-            case SEQ_MNEM_REG_NUM_REG:
-                printf("%08x\n", opcode);
-                break;
-            case SEQ_BLANK:
-                break;
-            case SEQ_INVALID:
-                /* TODO: handle errors */
-                fprintf(stdout, "parsing error\n");
-                exit(1);
-                break;
-            default:
-                assert(0);
-                break;
-        }
-#endif
 
         if (t0.t == TOK_NULL)
             break;
     }
-}
+
+    /* back-fill the references */
+    for (i = 0; i < num_refs; i++) {
+        uint32_t word_idx = refs[i].addr/4;
+        uint32_t opcode = output[word_idx];
+
+        size_t j;
+        int found = 0;
+        for (j = 0; j < num_symbols; j++) {
+            if (strcmp(symbols[j].s, refs[i].s) == 0) {
+                found = 1;
+                break;
+            }
+        }
+        assert(found);
+        uint32_t offset = symbols[j].addr - refs[i].addr;
+
+        if (refs[i].t == REF_J) {
+            opcode |= j_fmt_imm(offset);
+        } else if (refs[i].t == REF_B) {
+            opcode |= b_fmt_imm(offset);
+        } else {
+            assert(0);
+        }
+        output[word_idx] = opcode;
+    }
+
+    for (i = 0; i < num_words; i++) {
+        printf("0x%08x\n", output[i]);
+        //printf("%02lx: 0x%08x\n", i*4, output[i]);
+    }
+
+#if 0
+    printf("\nsymbol table:\n");
+    for (i = 0; i < num_symbols; i++) {
+        printf("\t%s: %08x\n", symbols[i].s, symbols[i].addr);
+    }
+    printf("\nreferences:\n");
+    for (i = 0; i < num_refs; i++) {
+        printf("\t%s (%d): %02x\n", refs[i].s, refs[i].t, refs[i].addr);
+    }
 #endif
+}
+
+static void
+strip_comments(char * s)
+{
+    /* replace comments with ' ' */
+    /* TODO: use memmove to actually remove the comments instead of replacing with whitespace */
+    size_t i;
+    size_t l = strlen(s);
+    int comment_flag = 0;
+    for (i = 0; i < l; i++) {
+        if (!comment_flag) {
+            if (s[i] == ';') {
+                s[i] = ' ';
+                comment_flag = 1;
+            }
+        } else {
+            if (s[i] == '\n')
+                comment_flag = 0;
+            else
+                s[i] = ' ';
+        }
+    }
+}
 
 int
 main(int argc, char * argv[])
@@ -1081,30 +990,14 @@ main(int argc, char * argv[])
         exit(1);
     }
 
+    /* TODO: get file size, allocate buffer */
     FILE * fp = fopen(argv[1], "r");
     char buffer[1024];
     fread(buffer, 1, sizeof(buffer), fp);
     buffer[sizeof(buffer)-1] = '\0';
     fclose(fp);
 
-    /* replace comments with ' ' */
-    /* TODO: use memmove to actually remove the comments instead of replacing with whitespace */
-    size_t i;
-    size_t l = strlen(buffer);
-    int comment_flag = 0;
-    for (i = 0; i < l; i++) {
-        if (!comment_flag) {
-            if (buffer[i] == ';') {
-                buffer[i] = ' ';
-                comment_flag = 1;
-            }
-        } else {
-            if (buffer[i] == '\n')
-                comment_flag = 0;
-            else
-                buffer[i] = ' ';
-        }
-    }
+    strip_comments(buffer);
 
     parse(buffer);
 
