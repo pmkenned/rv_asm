@@ -3,8 +3,10 @@
     .globl main
 
 main:
-;    jal x1,insert_sort    ; jal insert_sort
-;   ebreak
+    addi a1,x0,5
+    addi a0,x0,92
+    jal x1,insert_sort    ; jal insert_sort
+    ebreak
 
 insert_sort:
     addi a3,a0,4
@@ -31,8 +33,6 @@ exit_inner:
     addi a3,a3,4
     jal x0,outer_loop ;-64
 
-    ebreak
-
     .data
 list:
     .word 4
@@ -40,3 +40,4 @@ list:
     .word 7
     .word 2
     .word 5
+    .string "hello"

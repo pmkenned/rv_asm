@@ -8,10 +8,21 @@
 #define NELEM(X) sizeof(X)/sizeof(X[0])
 
 /* TODO
-   * directives
+   * directives:
+        .text
+        .data
+        .bss
+        .section
+        .align
+        .balign
+        .globl
+        .string
+        .float
+        .double
+        .option
    * pseudoinstructions
-   * labels
    * output to file in binary
+   * output ELF file
    * parse hex literals
    * string literals
    * %hi, %lo?
@@ -31,6 +42,7 @@ typedef enum {
     TOK_NEWLINE,
     TOK_NUMBER,
     TOK_IDENT,
+    TOK_STRING, // TODO
     TOK_INVALID
 } token_typ_t;
 
@@ -48,6 +60,7 @@ const char * token_strs[] = {
     "NEWLINE",
     "NUMBER",
     "IDENT",
+    "STRING",
     "INVALID"
 };
 #endif
@@ -462,6 +475,21 @@ is_mnemonic(const char * s)
 }
 
 static int
+is_num(const char * s)
+{
+    if (*s == '-')
+        s++;
+    if (*s == '\0')
+        return 0;
+    while (*s != '\0') {
+        if (!isdigit(*s))
+            return 0;
+        s++;
+    }
+    return 1;
+}
+
+static int
 is_reg(const char * s)
 {
     return str_in_list(s, reg_names, num_reg_names);
@@ -484,6 +512,8 @@ typedef enum {
     ST_COMMA,
     ST_DIGIT,
     ST_ALPHA,
+    ST_DQUOTE,
+    ST_CLOSE_QUOTE,
     ST_ERR
 } state_t;
 
@@ -503,12 +533,17 @@ const char * state_strs[] = {
 };
 #endif
 
+char prev_token[1024];
+char curr_token[1024];
+
 static state_t
 common_next_state(char c)
 {
     state_t next_state;
     if (isalpha(c) || c == '_') {
         next_state = ST_ALPHA;
+    } else if (c == '"') {
+        next_state = ST_DQUOTE;
     } else if (isdigit(c) || c == '-') {
         next_state = ST_DIGIT;
     } else if (c == '.') {
@@ -525,16 +560,13 @@ common_next_state(char c)
         next_state = ST_COMMA;
     } else if (c == ' ') {
         next_state = ST_INIT;
-    } else if (c == '\n') {
-        next_state = ST_INIT;
     } else {
+        fprintf(stderr, "prev_token: %s\n", prev_token);
         next_state = ST_ERR;
+        //assert(0);
     }
     return next_state;
 }
-
-char prev_token[1024];
-char curr_token[1024];
 
 static token_typ_t
 next_char(char c)
@@ -572,6 +604,7 @@ next_char(char c)
                 next_state = ST_COLON;
             } else {
                 next_state = ST_ERR;
+                assert(0);
             }
             if (next_state != ST_DIGIT)
                 tok_typ = TOK_NUMBER;
@@ -593,6 +626,7 @@ next_char(char c)
                 next_state = ST_COLON;
             } else {
                 next_state = ST_ERR;
+                //assert(0);
             }
             if (next_state != ST_ALPHA) {
                 if (is_reg(curr_token))
@@ -604,6 +638,18 @@ next_char(char c)
                 else
                     tok_typ = TOK_IDENT;
             }
+            break;
+        case ST_DQUOTE:
+            if (c == '"') {
+                next_state = ST_CLOSE_QUOTE;
+            } else if (c == '\\') {
+                // TODO: support escape sequences
+                assert(0);
+            }
+            break;
+        case ST_CLOSE_QUOTE:
+            next_state = common_next_state(c);
+            tok_typ = TOK_STRING;
             break;
         case ST_LPAREN:
             next_state = common_next_state(c);
@@ -630,6 +676,7 @@ next_char(char c)
                 next_state = ST_DIR;
             } else {
                 next_state = ST_ERR;
+                assert(0);
             }
             break;
         case ST_DIR:
@@ -641,6 +688,7 @@ next_char(char c)
                 next_state = ST_NEWLINE;
             } else {
                 next_state = ST_ERR;
+                assert(0);
             }
             if (next_state != ST_DIR)
                 tok_typ = TOK_DIR;
@@ -890,12 +938,91 @@ parse(const char * buffer)
 
             assert(curr_addr/4 < NELEM(output));
             output[curr_addr/4] = opcode;
-            num_words = curr_addr/4;
-
             //printf("%02x: 0x%08x\n", curr_addr, opcode);
             curr_addr += 4;
+            num_words = curr_addr/4;
 
         } else if (tokens[0].t == TOK_DIR) {
+            if (strcmp(tokens[0].s, ".byte") == 0) {
+                assert(is_num(tokens[1].s));
+                uint32_t word  = output[curr_addr/4];
+                if (curr_addr % 4 == 0) {
+                    word &= 0xffffff00;
+                    word |= atoi(tokens[1].s) & 0xff;
+                } else if (curr_addr % 4 == 1) {
+                    word &= 0xffff00ff;
+                    word |= (atoi(tokens[1].s) & 0xff) << 8;
+                } else if (curr_addr % 4 == 2) {
+                    word &= 0xff00ffff;
+                    word |= (atoi(tokens[1].s) & 0xff) << 16;
+                } else if (curr_addr % 4 == 3) {
+                    word &= 0x00ffffff;
+                    word |= (atoi(tokens[1].s) & 0xff) << 24;
+                }
+                output[curr_addr/4] = word;
+                curr_addr += 1;
+                num_words = curr_addr/4;
+                // TODO: what if a .byte is followed by something wider?
+            } else if (strcmp(tokens[0].s, ".half") == 0) {
+                assert(is_num(tokens[1].s));
+                uint32_t word  = output[curr_addr/4];
+                if (curr_addr % 4 == 0) {
+                    word &= 0xffff0000;
+                    word |= atoi(tokens[1].s) & 0xffff;
+                } else if (curr_addr % 4 == 2) {
+                    word &= 0x0000ffff;
+                    word |= (atoi(tokens[1].s) & 0xffff) << 16;
+                } else {
+                    assert(0);
+                }
+                output[curr_addr/4] = word;
+                curr_addr += 2;
+                num_words = curr_addr/4;
+            } else if (strcmp(tokens[0].s, ".word") == 0) {
+                assert(is_num(tokens[1].s));
+                assert(curr_addr % 4 == 0);
+                output[curr_addr/4] = atoi(tokens[1].s);
+                curr_addr += 4;
+                num_words = curr_addr/4;
+            } else if (strcmp(tokens[0].s, ".dword") == 0) {
+                assert(is_num(tokens[1].s));
+                assert(curr_addr % 8 == 0);
+                output[curr_addr/4] = (atoll(tokens[1].s) & 0x00000000ffffffff);
+                curr_addr += 4;
+                output[curr_addr/4] = (atoll(tokens[1].s) & 0xffffffff00000000) >> 32;
+                curr_addr += 4;
+                num_words = curr_addr/4;
+            } else if (strcmp(tokens[0].s, ".string") == 0) {
+                // TODO: this is buggy and shitty
+                // TODO: add terminating null char
+                const char * cp = tokens[1].s+1;
+                size_t idx = 0;
+                while (*cp != '"') {
+                    uint32_t word  = output[curr_addr/4];
+                    if (idx % 4 == 0) {
+                        word &= 0xffffff00;
+                        word |= *cp;
+                    } else if (idx % 4 == 1) {
+                        word &= 0xffff00ff;
+                        word |= (uint32_t)(*cp) << 8;
+                    } else if (idx % 4 == 2) {
+                        word &= 0xff00ffff;
+                        word |= (uint32_t)(*cp) << 16;
+                    } else if (idx % 4 == 3) {
+                        word &= 0x00ffffff;
+                        word |= (uint32_t)(*cp) << 24;
+                    }
+                    idx++;
+                    cp++;
+                    output[curr_addr/4] = word;
+                    curr_addr++;
+                }
+                // TODO: loses an incomplete word because of rounding down
+                num_words = curr_addr/4;
+                printf("num_words: %zu\n", num_words);
+            } else {
+                // TODO
+            }
         } else if (tokens[0].t == TOK_IDENT) {
 
             assert(num_tokens == 2 && tokens[1].t == TOK_COLON); // TODO: error checking
@@ -937,6 +1064,7 @@ parse(const char * buffer)
         } else if (refs[i].t == REF_B) {
             opcode |= b_fmt_imm(offset);
         } else {
+            // TODO: print error message, "referenced undefined symbol %s"
             assert(0);
         }
         output[word_idx] = opcode;
@@ -974,10 +1102,10 @@ strip_comments(char * s)
                 comment_flag = 1;
             }
         } else {
-            if (s[i] == '\n')
-                comment_flag = 0;
-            else
+            if (s[i] != '\n')
                 s[i] = ' ';
+            else
+                comment_flag = 0;
         }
     }
 }
@@ -992,9 +1120,9 @@ main(int argc, char * argv[])
 
     /* TODO: get file size, allocate buffer */
     FILE * fp = fopen(argv[1], "r");
-    char buffer[1024];
-    fread(buffer, 1, sizeof(buffer), fp);
-    buffer[sizeof(buffer)-1] = '\0';
+    char buffer[4096];
+    size_t nread = fread(buffer, 1, sizeof(buffer)-1, fp);
+    buffer[nread] = '\0';
     fclose(fp);
 
     strip_comments(buffer);

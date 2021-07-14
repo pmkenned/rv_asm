@@ -1,6 +1,6 @@
 CC = gcc
 CPPFLAGS=
-CFLAGS = -Wall -Wextra -MMD
+CFLAGS = -Wall -Wextra -ggdb -MMD
 LDFLAGS =
 LDLIBS =
 
