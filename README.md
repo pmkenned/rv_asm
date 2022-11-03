@@ -5,210 +5,210 @@ RISC-V Assembler
 
 ### RV32I and RV64I:
 ```
-add     rd, rs1, rs2
+add         rd, rs1, rs2
     c.add       rd, rs2
     c.mv        rd, rs2
-addi    rd, rs1, imm
+addi        rd, rs1, imm
     c.li        rd, imm
     c.addi      rd, imm
     c.addi16sp  imm
     c.addi4spn  rd, imm
-and     rd, rs1, rs2
+and         rd, rs1, rs2
     c.and       rd, rs2
-andi    rd, rs1, imm
+andi        rd, rs1, imm
     c.andi      rd, imm
-auipc   rd, imm
-beq     rs1, rs2, offset
+auipc       rd, imm
+beq         rs1, rs2, offset
     c.beq       rs1, offset
-beqz    rs1, offset         [pseudo]
+beqz        rs1, offset         [pseudo]
     beq rs1, x0, offset
-bge     rs1, rs2, offset
-bgeu    rs1, rs2, offset
-bgez    rs1, offset         [pseudo]
+bge         rs1, rs2, offset
+bgeu        rs1, rs2, offset
+bgez        rs1, offset         [pseudo]
     bge rs1, x0, offset
-bgt     rs1, rs2, offset    [pseudo]
+bgt         rs1, rs2, offset    [pseudo]
     blt rs2, rs1, offset
-bgtu    rs1, rs2, offset    [pseudo]
+bgtu        rs1, rs2, offset    [pseudo]
     bltu rs2, rs1, offset
-bgtz    rs2, offset         [pseudo]
+bgtz        rs2, offset         [pseudo]
     blt x0, rs2, offset
-ble     rs1, rs2, offset    [pseudo]
+ble         rs1, rs2, offset    [pseudo]
     bge rs2, rs1, offset
-bleu    rs1, rs2, offset    [pseudo]
+bleu        rs1, rs2, offset    [pseudo]
     bgeu rs2, rs1, offset
-blez    rs2, offset         [pseudo]
+blez        rs2, offset         [pseudo]
     bge x0, rs2, offset
-blt     rs1, rs2, offset
-bltz    rs1, offset         [pseudo]
+blt         rs1, rs2, offset
+bltz        rs1, offset         [pseudo]
     blt rs1, x0, offset
-bltu    rs1, rs2, offset
-bne     rs1, rs2, offset
-bnez    rs1, offset         [pseudo]
+bltu        rs1, rs2, offset
+bne         rs1, rs2, offset
+bnez        rs1, offset         [pseudo]
     bne rs1, x0, offset
-call    rd, symbol          [pseudo]
+call        rd, symbol          [pseudo]
     auipc rd, offsetHi; jalr rd, offsetLo(rd); if rd is omitted, x1
-csrr    rd, csr             [pseudo]
+csrr        rd, csr             [pseudo]
     csrrs rd, csr, x0
-csrc    csr, rs1            [pseudo]
+csrc        csr, rs1            [pseudo]
     csrrc x0, csr, rs1
-csrci   csr, zimm[4:0]      [pseudo]
+csrci       csr, zimm[4:0]      [pseudo]
     csrrci x0, csr, zimm
-csrrc   rd, csr, rs1
-csrrci  rd, csr, zimm[4:0]
-csrrs   rd, csr, rs1
-csrrsi  rd, csr, zimm[4:0]
-csrrw   rd, csr, rs1
-csrrwi  rd, csr, zimm[4:0]
-csrs    csr, rs1            [pseudo]
+csrrc       rd, csr, rs1
+csrrci      rd, csr, zimm[4:0]
+csrrs       rd, csr, rs1
+csrrsi      rd, csr, zimm[4:0]
+csrrw       rd, csr, rs1
+csrrwi      rd, csr, zimm[4:0]
+csrs        csr, rs1            [pseudo]
     csrrs x0, csr, rs1
-csrsi   csr, zimm[4:0]      [pseudo]
+csrsi       csr, zimm[4:0]      [pseudo]
     csrrsi x0, csr, zimm
-csrw    csr, rs1            [pseudo]
+csrw        csr, rs1            [pseudo]
     csrrw x0, csr, rs1
-csrwi   csr, zimm[4:0]      [pseudo]
+csrwi       csr, zimm[4:0]      [pseudo]
     csrrwi x0, csr, zimm
 ebreak
 ecall
-fence   pred, succ; if args are omitted, iorw, iorw
+fence       pred, succ          ; if args are omitted, iorw, iorw
 fence.i
-j       offset              [pseudo]
+j           offset              [pseudo]
     jal x0, offset
-jal     rd, offset; if rd is omitted, x1
+jal         rd, offset          ; if rd is omitted, x1
     c.j offset
     c.jal offset
-jalr    rd, offset(rs1); if rd is omitted, x1
+jalr        rd, offset(rs1)     ; if rd is omitted, x1
     c.jr rs1
     c.jalr rs1
-jr      rs1                 [pseudo]
+jr          rs1                 [pseudo]
     jalr x0, 0(rs1)
-la      rd, symbol          [pseudo]
+la          rd, symbol          [pseudo]
     RV32I: auipc rd, offsetHi; lw rd, offsetLo(rd)
     RV64I: auipc rd, offsetHi; ld rd, offsetLo(rd)
-lb      rd, offset(rs1)
-lbu     rd, offset(rs1)
-lh      rd, offset(rs1)
-lhu     rd, offset(rs1)
-li      rd, imm             [pseudo]
+lb          rd, offset(rs1)
+lbu         rd, offset(rs1)
+lh          rd, offset(rs1)
+lhu         rd, offset(rs1)
+li          rd, imm             [pseudo]
     RV32I: lui and/or addi
     RV64I: lui, addi, slli, addi, slli, addi, slli, addi
-lla     rd, symbol          [pseudo]
+lla         rd, symbol          [pseudo]
     auipc rd, offsetHi; addi rd, rd, offsetLo
-lw      rd, offset(rs1)
-lui     rd, imm
+lw          rd, offset(rs1)
+lui         rd, imm
     c.lui   rd, imm
 mret
-mv      rd, rs1             [pseudo]
+mv          rd, rs1             [pseudo]
     addi rd, rs1, 0
-neg     rd, rs2             [pseudo]
+neg         rd, rs2             [pseudo]
     sub rd, x0, rs2
-nop                         [pseudo]
+nop                             [pseudo]
     addi x0, x0, 0
-not     rd, rs1             [pseudo]
+not         rd, rs1             [pseudo]
     xori rd, rs1, -1
-or      rd, rs1, rs2
-ori     rd, rs1, imm
-rdcycle                     [pseudo]
+or          rd, rs1, rs2
+ori         rd, rs1, imm
+rdcycle                         [pseudo]
     csrrs rd, cycle, x0
-rdinstret                   [pseudo]
+rdinstret                       [pseudo]
     csrrs rd, instret, x0
-rdtime                      [pseudo]
+rdtime                          [pseudo]
     csrrs rd, time, x0
-ret                         [pseudo]
+ret                             [pseudo]
     jalr x0, 0(x1)
-sb      rs2, offset(rs1)
-seqz    rd, rs1             [pseudo]
+sb          rs2, offset(rs1)
+seqz        rd, rs1             [pseudo]
     sltiu rd, rs1, 1
 sfence.vma  rs1, rs2
-sgtz    rd, rs2             [pseudo]
+sgtz        rd, rs2             [pseudo]
     slt rd, x0, rs2
-sh      rs2, offset(rs1)
-sw      rs2, offset(rs1)
+sh          rs2, offset(rs1)
+sw          rs2, offset(rs1)
     c.swsp  rs2, offset
     c.sw    rs2, offset(rs1)
-sll     rd, rs1, rs2
-slli    rd, rs1, shamt
+sll         rd, rs1, rs2
+slli        rd, rs1, shamt
     c.slli  rd, shamt
-slt     rd, rs1, rs2
-slti    rd, rs1, imm
-sltiu   rd, rs1, imm
-sltu    rd, rs1, rs2
-sltz    rd, rs1             [pseudo]
+slt         rd, rs1, rs2
+slti        rd, rs1, imm
+sltiu       rd, rs1, imm
+sltu        rd, rs1, rs2
+sltz        rd, rs1             [pseudo]
     slt rd, rs1, x0
-snez    rd, rs2             [pseudo]
+snez        rd, rs2             [pseudo]
     sltu rd, x0, rs2
-sra     rd, rs1, rs2
-srai    rd, rs1, shamt
+sra         rd, rs1, rs2
+srai        rd, rs1, shamt
     c.srai rd, shamt
 sret
-srl     rd, rs1, rs2
-srli    rd, rs1, shamt
+srl         rd, rs1, rs2
+srli        rd, rs1, shamt
     c.srli  rd, shamt
-sub     rd, rs1, rs2        [pseudo]
+sub         rd, rs1, rs2        [pseudo]
     c.sub rd, rs2
-tail    symbol              [pseudo]
+tail        symbol              [pseudo]
     auipc x6, offsetHi; jalr x0, offsetLo(x6)
 wfi
-xor     rd, rs1, rs2
+xor         rd, rs1, rs2
     c.xor rd, rs2
-xori    rd, rs1, imm
+xori        rd, rs1, imm
 ```
 
 ### RV32I only:
 ```
-rdcycleh                    [pseudo]
-csrrs rd, cycleh, x0
-rdinstreth                  [pseudo]
-csrrs rd, instreth, x0
-rdtimeh                     [pseudo]
-csrrs rd, timeh, x0
+rdcycleh                        [pseudo]
+    csrrs rd, cycleh, x0
+rdinstreth                      [pseudo]
+    csrrs rd, instreth, x0
+rdtimeh                         [pseudo]
+    csrrs rd, timeh, x0
 ```
 
 ### RV64I only:
 ```
-addiw   rd, rs1, imm
+addiw       rd, rs1, imm
     c.addiw     rd, imm
-addw    rd, rs1, rs2
+addw        rd, rs1, rs2
     c.addw      rd, rs2
-ld      rd, offset(rs1)
+ld          rd, offset(rs1)
     c.ldsp  rd, offset
     c.ld    rd, offset(rs1)
-lwu     rd, offset(rs1)
-negw    rd, rs2             [pseudo]
+lwu         rd, offset(rs1)
+negw        rd, rs2             [pseudo]
     subw rd, x0, rs2
-sd      rs2, offset(rs1)
+sd          rs2, offset(rs1)
     c.sdsp  rs2, offset
     c.sd    rs2, offset(rs1)
-sext.w  rd, rs1             [pseudo]
+sext.w      rd, rs1             [pseudo]
     addiw rd, rs1, 0
-slliw   rd, rs1, shamt
-sllw    rd, rs1, rs2
-sraiw   rd, rs1, shamt
-sraw    rd, rs1, rs2
-srliw   rd, rs1, shamt
-srlw    rd, rs1, rs2
-subw    rd, rs1, rs2
+slliw       rd, rs1, shamt
+sllw        rd, rs1, rs2
+sraiw       rd, rs1, shamt
+sraw        rd, rs1, rs2
+srliw       rd, rs1, shamt
+srlw        rd, rs1, rs2
+subw        rd, rs1, rs2
     c.subw rd, rs2
 ```
 
 ### RV32M and RV64M:
 ```
-div     rd, rs1, rs2
-divu    rd, rs1, rs2
-mul     rd, rs1, rs2
-mulh    rd, rs1, rs2
-mulhsu  rd, rs1, rs2
-mulhu   rd, rs1, rs2
-rem     rd, rs1, rs2
-remu    rd, rs1, rs2
+div         rd, rs1, rs2
+divu        rd, rs1, rs2
+mul         rd, rs1, rs2
+mulh        rd, rs1, rs2
+mulhsu      rd, rs1, rs2
+mulhu       rd, rs1, rs2
+rem         rd, rs1, rs2
+remu        rd, rs1, rs2
 ```
 
 ### RV64M only:
 ```
-divuw   rd, rs1, rs2
-divw    rd, rs1, rs2
-mulw    rd, rs1, rs2
-remuw   rd, rs1, rs2
-remw    rd, rs1, rs2
+divuw       rd, rs1, rs2
+divw        rd, rs1, rs2
+mulw        rd, rs1, rs2
+remuw       rd, rs1, rs2
+remw        rd, rs1, rs2
 ```
 
 ### RV32F and RV64F:
@@ -234,26 +234,26 @@ fmsub.s     rd, rs1, rs2, rs3
 fmul.s      rd, rs1, rs2
 fmv.w.x     rd, rs1, rs2
 fmv.x.w     rd, rs1, rs2
-fneg.s      rd, rs1         [pseudo]
+fneg.s      rd, rs1             [pseudo]
     fsgnj.s rd, rs1, rs1
-fnmadd.s    rs, rs1, rs2, rs3
-fnmsubd.s   rs, rs1, rs2, rs3
-frcsr       rd              [pseudo]
+fnmadd.s    rd, rs1, rs2, rs3
+fnmsubd.s   rd, rs1, rs2, rs3
+frcsr       rd                  [pseudo]
     csrrs   rd, fcsr, x0
-frflags     rd              [pseudo]
+frflags     rd                  [pseudo]
     csrrs   rd, fflags, x0
-frrm        rd              [pseudo]
+frrm        rd                  [pseudo]
     csrrs   rd, frm, x0
-fscsr       rd, rs1         [pseudo]
-    csrrw   rd, fcsr, rs1; if rd is omitted, x0
-fsflags     rd, rs1         [pseudo]
-    csrrw   rd, fflags; if rd is omitted, x0
+fscsr       rd, rs1             [pseudo]
+    csrrw   rd, fcsr, rs1       ; if rd is omitted, x0
+fsflags     rd, rs1             [pseudo]
+    csrrw   rd, fflags          ; if rd is omitted, x0
 fsgnj.s     rd, rs1, rs2
 fsgnjn.s    rd, rs1, rs2
 fsgnjx.s    rd, rs1, rs2
 fsqrt.s     rd, rs1, rs2
-fsrm        rd, rs1         [pseudo]
-    csrrw   rd, frm, rs1; if rd is omitted, x0
+fsrm        rd, rs1             [pseudo]
+    csrrw   rd, frm, rs1        ; if rd is omitted, x0
 fsub.s      rd, rs1, rs2
 fsw         rs2, offset(rs1)
     c.fswsp rs2, offset
@@ -290,12 +290,12 @@ fmax.d      rd, rs1, rs2
 fmin.d      rd, rs1, rs2
 fmsub.d     rd, rs1, rs2, rs3
 fmul.d      rd, rs1, rs2
-fmv.d       rd, rs1         [pseudo]
+fmv.d       rd, rs1             [pseudo]
     fsgnj.d rd, rs1, rs1
-fneg.d      rd, rs1         [pseudo]
+fneg.d      rd, rs1             [pseudo]
     fsgnj.d rd, rs1, rs1
-fnmadd.d    rs, rs1, rs2, rs3
-fnmsubd.d   rs, rs1, rs2, rs3
+fnmadd.d    rd, rs1, rs2, rs3
+fnmsubd.d   rd, rs1, rs2, rs3
 fsd         rs2, offset(rs1)
     c.fsdsp rs2, offset
     c.fsd   rs2, offset(rs1)
@@ -322,7 +322,7 @@ c.add       rd, rs2
 c.addi      rd, imm
     addi rd, rd, imm
 c.addi16sp  imm
-    addi x2, x2, imm; invalid when imm=0
+    addi x2, x2, imm            ; invalid when imm=0
 c.addi4spn  rd', imm
     addi rd, x2, uimm where rd=8+rd'; invalid when imm=0
 c.and
@@ -409,4 +409,43 @@ amoswap.d   rd, rs2, (rs1)
 amoxor.d    rd, rs2, (rs1)
 lr.d        rd, (rs1)
 sc.d        rd, rs2, (rs1)
+```
+
+To get a list:
+```
+grep -P '^[^`# ]' README.md
+```
+
+```
+TOKSET_OFFSET: TOK_NUMBER, TOK_IDENT
+imm                     FMT_NUM                 [TOK_NUM]                                               c.addi16sp
+offset                  FMT_OFFSET                                                                      j, c.jal
+offset(rs1)             FMT_OFFSET_REG                                                                  jalr
+rd                      FMT_REG                                                                         frcsr, frflags, frrm
+rs1                     FMT_REG                                                                         jr
+rd, imm                 FMT_REG_NUM             [TOK_REG, ',', TOK_NUM]                                 auipc, li, lui
+rd, offset              FMT_REG_OFFSET          [TOK_REG, ',', TOKSET_OFFSET]                           jal
+rs1, offset             FMT_REG_OFFSET                                                                  beqz, bgez, bltz, bnez
+rs2, offset             FMT_REG_OFFSET                                                                  bgtz, blez
+rd, offset(rs1)         FMT_REG_OFFSET_REG      [TOK_REG, ',', TOKSET_OFFSET, '(', TOK_REG, ')']        lb, etc.
+rs2, offset(rs1)        FMT_REG_OFFSET_REG                                                              sb, etc.
+rd, (rs1)               FMT_REG_PAREN_REG       [TOK_REG, ',', '(', TOK_REG, ')']                       lr.w, lr.d
+rd, rs1                 FMT_REG_REG             [TOK_REG, ',', TOK_REG]                                 mov, not, seqz, sltz, fabs.s, etc.
+rd, rs2                 FMT_REG_REG                                                                     neg, sgtz, etc.
+rs1, rs2                FMT_REG_REG                                                                     sfence.vma
+rd, rs1, imm            FMT_REG_REG_NUM         [TOK_REG, ',', TOK_REG, ',', TOK_NUM]
+rd, rs1, shamt          FMT_REG_REG_NUM         [TOK_REG, ',', TOK_REG, ',', TOK_NUM]                   slli, etc.
+rd, rs1, rs2            FMT_REG_REG_REG         [TOK_REG, ',', TOK_REG, ',', TOK_REG]
+rd, rs1, rs2, rs3       FMT_REG_REG_REG_REG     [TOK_REG, ',', TOK_REG, ',', TOK_REG, ',', TOK_REG]     fmadd.s, etc.
+rd, rs2, (rs1)          FMT_REG_REG_PAREN_REG                                                           amoadd.w, etc.
+rs1, rs2, offset        FMT_REG_REG_OFFSET
+rd, symbol              FMT_REG_SYMBOL
+symbol                  FMT_SYMBOL
+rd', imm                FMT_REG_NUM
+csr, rs1                FMT_CSR_REG
+csr, zimm[4:0]          FMT_CSR_NUM
+rd, csr                 FMT_REG_CSR
+rd, csr, rs1            FMT_REG_CSR_REG
+rd, csr, zimm[4:0]      FMT_REG_CSR_NUM
+pred, succ              FMT_IORW_IORW
 ```
