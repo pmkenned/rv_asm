@@ -16,12 +16,18 @@ SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(SRC:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
 DEP = $(OBJ:%.o=%.d)
 
+ASM ?= insert_sort
+
 .PHONY: all run test clean
 
 all: $(BUILD_DIR)/$(TARGET)
 
 run: $(BUILD_DIR)/$(TARGET)
-	$(BUILD_DIR)/$(TARGET) $(ASM)
+	$(BUILD_DIR)/$(TARGET) asm/$(ASM).s
+
+test: $(BUILD_DIR)/$(TARGET)
+	$(BUILD_DIR)/$(TARGET) asm/$(ASM).s > out.hex
+	diff out.hex hex/$(ASM).hex
 
 clean:
 	rm -rf $(BUILD_DIR)
