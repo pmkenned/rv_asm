@@ -4,6 +4,8 @@
 #include <ctype.h>
 #include <assert.h>
 #include <stdint.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #define NELEM(X) sizeof(X)/sizeof(X[0])
 
@@ -770,7 +772,7 @@ valid forms:
 */
 
 typedef struct {
-    const char * s;
+    char * s;
     uint32_t addr;
 } symbol_t;
 
@@ -781,7 +783,7 @@ typedef enum {
 } ref_type_t;
 
 typedef struct {
-    const char * s;
+    char * s;
     ref_type_t t;
     uint32_t addr;
 } ref_t;
@@ -1019,7 +1021,7 @@ parse(const char * buffer)
                 }
                 // TODO: loses an incomplete word because of rounding down
                 num_words = curr_addr/4;
-                printf("num_words: %zu\n", num_words);
+                //printf("num_words: %zu\n", num_words);
             } else {
                 // TODO
             }
@@ -1071,7 +1073,7 @@ parse(const char * buffer)
     }
 
     for (i = 0; i < num_words; i++) {
-        printf("0x%08x\n", output[i]);
+        printf("%08x\n", output[i]);
         //printf("%02lx: 0x%08x\n", i*4, output[i]);
     }
 
@@ -1085,6 +1087,12 @@ parse(const char * buffer)
         printf("\t%s (%d): %02x\n", refs[i].s, refs[i].t, refs[i].addr);
     }
 #endif
+    for(size_t i = 0; i < num_symbols; i++)
+        free(symbols[i].s);
+    free(symbols);
+    for(size_t i = 0; i < num_refs; i++)
+        free(refs[i].s);
+    free(refs);
 }
 
 static void
@@ -1110,6 +1118,37 @@ strip_comments(char * s)
     }
 }
 
+typedef struct {
+    char * p;
+    size_t n;
+} buffer_t;
+
+static buffer_t
+read_file(const char * filename)
+{
+    FILE * fp = fopen(filename, "r");
+    if (fp == NULL) {
+        perror(filename);
+        exit(EXIT_FAILURE);
+    }
+    struct stat sb;
+    if (fstat(fileno(fp), &sb) == -1) {
+        perror(filename);
+        exit(EXIT_FAILURE);
+    }
+    buffer_t buffer;
+    buffer.n = (size_t) (sb.st_size+1);
+    buffer.p = malloc(sizeof(*buffer.p)*buffer.n);
+    fread(buffer.p, 1, buffer.n, fp);
+    if (ferror(fp)) {
+        perror(filename);
+        exit(EXIT_FAILURE);
+    }
+    fclose(fp);
+    buffer.p[buffer.n-1] = '\0';
+    return buffer;
+}
+
 int
 main(int argc, char * argv[])
 {
@@ -1118,16 +1157,10 @@ main(int argc, char * argv[])
         exit(1);
     }
 
-    /* TODO: get file size, allocate buffer */
-    FILE * fp = fopen(argv[1], "r");
-    char buffer[4096];
-    size_t nread = fread(buffer, 1, sizeof(buffer)-1, fp);
-    buffer[nread] = '\0';
-    fclose(fp);
-
-    strip_comments(buffer);
-
-    parse(buffer);
+    buffer_t file_contents = read_file(argv[1]);
+    strip_comments(file_contents.p);
+    parse(file_contents.p);
+    free(file_contents.p);
 
     return 0;
 }
