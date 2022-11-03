@@ -33,15 +33,10 @@
 /* TODO: quotation marks for strings */
 typedef enum {
     TOK_NULL,
-    TOK_DIR,
+    TOK_DIR=128,
     TOK_MNEM,
     TOK_REG,
     TOK_CSR, // TODO
-    TOK_COMMA,
-    TOK_COLON,
-    TOK_LPAREN,
-    TOK_RPAREN,
-    TOK_NEWLINE,
     TOK_NUMBER,
     TOK_IDENT,
     TOK_STRING, // TODO
@@ -55,11 +50,6 @@ const char * token_strs[] = {
     "MNEM",
     "REG",
     "CSR",
-    "COMMA",
-    "COLON",
-    "LPAREN",
-    "RPAREN",
-    "NEWLINE",
     "NUMBER",
     "IDENT",
     "STRING",
@@ -655,23 +645,23 @@ next_char(char c)
             break;
         case ST_LPAREN:
             next_state = common_next_state(c);
-            tok_typ = TOK_LPAREN;
+            tok_typ = '(';
             break;
         case ST_RPAREN:
             next_state = common_next_state(c);
-            tok_typ = TOK_RPAREN;
+            tok_typ = ')';
             break;
         case ST_NEWLINE:
             next_state = common_next_state(c);
-            tok_typ = TOK_NEWLINE;
+            tok_typ = '\n';
             break;
         case ST_COLON:
             next_state = common_next_state(c);
-            tok_typ = TOK_COLON;
+            tok_typ = ':';
             break;
         case ST_COMMA:
             next_state = common_next_state(c);
-            tok_typ = TOK_COMMA;
+            tok_typ = ',';
             break;
         case ST_PERIOD:
             if (isalnum(c)) {
@@ -815,8 +805,8 @@ parse(const char * buffer)
     while (1) {
         ln++;
         ti = 0;
-        tokens[0].t = TOK_NEWLINE; // TODO: this is a hack
-        while (t0 = get_token(buffer), t0.t != TOK_NEWLINE && t0.t != TOK_NULL) {
+        tokens[0].t = '\n'; // TODO: this is a hack
+        while (t0 = get_token(buffer), t0.t != '\n' && t0.t != TOK_NULL) {
             assert(ti < 10);
             memcpy(tokens+ti, &t0, sizeof(token_t));
             ti++;
@@ -1027,7 +1017,7 @@ parse(const char * buffer)
             }
         } else if (tokens[0].t == TOK_IDENT) {
 
-            assert(num_tokens == 2 && tokens[1].t == TOK_COLON); // TODO: error checking
+            assert(num_tokens == 2 && tokens[1].t == ':'); // TODO: error checking
 
             // TODO: check if the symbol is already defined
             symbols[num_symbols].s = strdup(tokens[0].s);
@@ -1038,7 +1028,7 @@ parse(const char * buffer)
                 symbols = realloc(symbols, sizeof(*symbols)*symbols_cap);
             }
 
-        } else if (tokens[0].t == TOK_NEWLINE) {
+        } else if (tokens[0].t == '\n') {
         }
 
         if (t0.t == TOK_NULL)
