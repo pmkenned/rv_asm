@@ -9,6 +9,11 @@
 
 #define NELEM(X) sizeof(X)/sizeof(X[0])
 
+typedef struct {
+    char * p;
+    size_t n;
+} buffer_t;
+
 /* TODO
    * directives:
         .text
@@ -561,21 +566,19 @@ common_next_state(char c)
 }
 
 static token_typ_t
-next_char(char c)
+next_char(char c, state_t * state, size_t * token_pos)
 {
-    static size_t ti = 0;
-    static state_t state = ST_INIT;
-    state_t next_state = state;
+    state_t next_state = *state;
 
     token_typ_t tok_typ = TOK_NULL;
 
     /* TODO: maybe emit the current token? */
     if (c == '\0') {
-        state = ST_INIT;
+        *state = ST_INIT;
         return TOK_NULL;
     }
 
-    switch (state) {
+    switch (*state) {
         case ST_INIT:
             next_state = common_next_state(c);
             break;
@@ -696,16 +699,16 @@ next_char(char c)
 
     if (tok_typ != TOK_NULL) {
         strcpy(prev_token, curr_token);
-        ti = 0;
+        *token_pos = 0;
     }
     if (next_state != ST_INIT) {
-        curr_token[ti++] = c;
-        curr_token[ti] = '\0';
+        curr_token[(*token_pos)++] = c;
+        curr_token[*token_pos] = '\0';
     }
 
-    state = next_state;
+    *state = next_state;
 
-    //printf("%c\t%s\t%s\n", c, state_strs[state], token_strs[tok_typ]);
+    //printf("%c\t%s\t%s\n", c, state_strs[*state], token_strs[tok_typ]);
     if (tok_typ != TOK_NULL) {
         //printf("%s(%s) ", token_strs[tok_typ], prev_token);
         //printf("%s ", prev_token);
@@ -721,19 +724,14 @@ typedef struct {
     char s[1024];
 } token_t;
 
-/* TODO: this is bug-prone; in particular the use of static variables */
 /* TODO: this involves excessive copying of return values */
 static token_t
-get_token(const char * buffer)
+get_token(buffer_t buffer, size_t * pos, state_t * state, size_t * token_pos)
 {
     token_t tok;
     token_typ_t t = TOK_NULL;
-    static size_t i = 0;
-    static size_t l;
-    if (i == 0)
-        l = strlen(buffer);
-    while (i < l) {
-        t = next_char(buffer[i++]);
+    while (*pos < buffer.n) {
+        t = next_char(buffer.p[(*pos)++], state, token_pos);
         if (t != TOK_NULL)
             break;
     }
@@ -780,7 +778,7 @@ typedef struct {
 
 /* TODO: separate parsing from outputting */
 static void
-parse(const char * buffer)
+parse(buffer_t buffer)
 {
 
     // TODO: should be a dict
@@ -799,18 +797,21 @@ parse(const char * buffer)
 
     size_t i;
     token_t tokens[10];
-    token_t t0;
+    token_t tok;
     size_t ti;
     int ln = 0;
+    size_t pos = 0;
+    state_t state = ST_INIT;
+    size_t token_pos = 0;
     while (1) {
         ln++;
         ti = 0;
         tokens[0].t = '\n'; // TODO: this is a hack
-        while (t0 = get_token(buffer), t0.t != '\n' && t0.t != TOK_NULL) {
+        while (tok = get_token(buffer, &pos, &state, &token_pos), tok.t != '\n' && tok.t != TOK_NULL) {
             assert(ti < 10);
-            memcpy(tokens+ti, &t0, sizeof(token_t));
+            memcpy(tokens+ti, &tok, sizeof(token_t));
             ti++;
-            //printf("%s (%s) ", token_strs[t0.t], t0.s);
+            //printf("%s (%s) ", token_strs[tok.t], tok.s);
         }
 
         size_t num_tokens = ti;
@@ -1031,7 +1032,7 @@ parse(const char * buffer)
         } else if (tokens[0].t == '\n') {
         }
 
-        if (t0.t == TOK_NULL)
+        if (tok.t == TOK_NULL)
             break;
     }
 
@@ -1108,11 +1109,6 @@ strip_comments(char * s)
     }
 }
 
-typedef struct {
-    char * p;
-    size_t n;
-} buffer_t;
-
 static buffer_t
 read_file(const char * filename)
 {
@@ -1149,7 +1145,7 @@ main(int argc, char * argv[])
 
     buffer_t file_contents = read_file(argv[1]);
     strip_comments(file_contents.p);
-    parse(file_contents.p);
+    parse(file_contents);
     free(file_contents.p);
 
     return 0;
