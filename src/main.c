@@ -1105,7 +1105,7 @@ strip_comments(char * s)
     int comment_flag = 0;
     for (i = 0; i < l; i++) {
         if (!comment_flag) {
-            if (s[i] == ';') {
+            if (s[i] == '#') {
                 s[i] = ' ';
                 comment_flag = 1;
             }
