@@ -28,6 +28,7 @@ run: $(BUILD_DIR)/$(TARGET)
 test: $(BUILD_DIR)/$(TARGET)
 	$(BUILD_DIR)/$(TARGET) asm/$(ASM).s > out.hex
 	diff out.hex hex/$(ASM).hex
+	rm -f out.hex
 
 clean:
 	rm -rf $(BUILD_DIR)
