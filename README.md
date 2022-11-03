@@ -3,7 +3,8 @@ RISC-V Assembler
 
 ## Notes
 
-RV32I and RV64I:
+### RV32I and RV64I:
+```
 add     rd, rs1, rs2
     c.add       rd, rs2
     c.mv        rd, rs2
@@ -150,16 +151,20 @@ wfi
 xor     rd, rs1, rs2
     c.xor rd, rs2
 xori    rd, rs1, imm
+```
 
-RV32I only:
+### RV32I only:
+```
 rdcycleh                    [pseudo]
 csrrs rd, cycleh, x0
 rdinstreth                  [pseudo]
 csrrs rd, instreth, x0
 rdtimeh                     [pseudo]
 csrrs rd, timeh, x0
+```
 
-RV64I only:
+### RV64I only:
+```
 addiw   rd, rs1, imm
     c.addiw     rd, imm
 addw    rd, rs1, rs2
@@ -183,8 +188,10 @@ srliw   rd, rs1, shamt
 srlw    rd, rs1, rs2
 subw    rd, rs1, rs2
     c.subw rd, rs2
+```
 
-RV32M and RV64M:
+### RV32M and RV64M:
+```
 div     rd, rs1, rs2
 divu    rd, rs1, rs2
 mul     rd, rs1, rs2
@@ -193,15 +200,19 @@ mulhsu  rd, rs1, rs2
 mulhu   rd, rs1, rs2
 rem     rd, rs1, rs2
 remu    rd, rs1, rs2
+```
 
-RV64M only:
+### RV64M only:
+```
 divuw   rd, rs1, rs2
 divw    rd, rs1, rs2
 mulw    rd, rs1, rs2
 remuw   rd, rs1, rs2
 remw    rd, rs1, rs2
+```
 
-RV32F and RV64F:
+### RV32F and RV64F:
+```
 fabs.s      rd, rs1
 fadd.s      rd, rs1, rs2
 fclass.s    rd, rs1, rs2
@@ -235,7 +246,8 @@ frrm        rd              [pseudo]
     csrrs   rd, frm, x0
 fscsr       rd, rs1         [pseudo]
     csrrw   rd, fcsr, rs1; if rd is omitted, x0
-fsflags     rd, rs1
+fsflags     rd, rs1         [pseudo]
+    csrrw   rd, fflags; if rd is omitted, x0
 fsgnj.s     rd, rs1, rs2
 fsgnjn.s    rd, rs1, rs2
 fsgnjx.s    rd, rs1, rs2
@@ -246,14 +258,17 @@ fsub.s      rd, rs1, rs2
 fsw         rs2, offset(rs1)
     c.fswsp rs2, offset
     c.fsw   rs2, offset(rs1)
+```
 
-RV64F only:
+### RV64F only:
+```
 fcvt.l.s    rd, rs1, rs2
 fcvt.lu.s   rd, rs1, rs2
 fcvt.s.l    rd, rs1, rs2
 fcvt.s.lu   rd, rs1, rs2
+```
 
-RV32D and RV64D:
+### RV32D and RV64D:
 fabs.d      rd, rs1
 fadd.d      rd, rs1, rs2
 fclass.d    rd, rs1, rs2
@@ -290,15 +305,18 @@ fsgnjx.d    rd, rs1, rs2
 fsqrt.d     rd, rs1, rs2
 fsub.d      rd, rs1, rs2
 
-RV64D only:
+### RV64D only:
+```
 fcvt.d.l    rd, rs1, rs2
 fcvt.d.lu   rd, rs1, rs2
 fcvt.l.d    rd, rs1, rs2
 fcvt.lu.d   rd, rs1, rs2
 fmv.d.x     rd, rs1, rs2
 fmv.x.d     rd, rs1, rs2
+```
 
-RV32IC and RV64IC:
+### RV32IC and RV64IC:
+```
 c.add       rd, rs2
     add rd, rd, rs2
 c.addi      rd, imm
@@ -328,11 +346,15 @@ c.sub
 c.sw
 c.swsp
 c.xor
+```
 
-RV32IC only:
+### RV32IC only:
+```
 c.jal
+```
 
-RV64IC only
+### RV64IC only
+```
 c.addiw     rd, imm
     addiw rd, rd, imm; invalid when rd=x0
 c.addw
@@ -341,20 +363,26 @@ c.ldsp
 c.sd
 c.sdsp
 c.subw
+```
 
-RV32DC and RV64DC:
+### RV32DC and RV64DC:
+```
 c.fld
 c.fldsp
 c.fsd
 c.fsdsp
+```
 
-RV32FC only:
+### RV32FC only:
+```
 c.flw
 c.flwsp
 c.fsw
 c.fswsp
+```
 
-RV32A and RV64A:
+### RV32A and RV64A:
+```
 amoadd.w    rd, rs2, (rs1)
 amoand.w    rd, rs2, (rs1)
 amomax.w    rd, rs2, (rs1)
@@ -365,9 +393,11 @@ amoor.w     rd, rs2, (rs1)
 amoswap.w   rd, rs2, (rs1)
 amoxor.w    rd, rs2, (rs1)
 lr.w        rd, (rs1)
-sc.w    rd, rs2, (rs1)
+sc.w        rd, rs2, (rs1)
+```
 
-RV64A only:
+### RV64A only:
+```
 amoadd.d    rd, rs2, (rs1)
 amoand.d    rd, rs2, (rs1)
 amomax.d    rd, rs2, (rs1)
@@ -379,3 +409,4 @@ amoswap.d   rd, rs2, (rs1)
 amoxor.d    rd, rs2, (rs1)
 lr.d        rd, (rs1)
 sc.d        rd, rs2, (rs1)
+```
