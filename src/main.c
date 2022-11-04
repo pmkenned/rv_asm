@@ -347,7 +347,10 @@ parse(Buffer buffer)
         Token tok;
         tokens[0].t = '\n'; // TODO: this is a hack
         size_t num_tokens = 0;
-        while (tok = get_token(&ts), tok.t != '\n' && tok.t != TOK_NONE) {
+        while (1) {
+            tok = get_token(&ts);
+            if (tok.t == '\n' || tok.t == TOK_EOF)
+                break;
             assert(num_tokens < 10); // TODO: error-checking
             memcpy(&tokens[num_tokens], &tok, sizeof(Token));
             num_tokens++;
@@ -572,7 +575,7 @@ parse(Buffer buffer)
         } else if (tokens[0].t == '\n') {
         }
 
-        if (tok.t == TOK_NONE)
+        if (tok.t == TOK_EOF)
             break;
     }
 

@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <stdlib.h>
 
 #if 1
 const char * token_strs[] = {
@@ -12,7 +13,7 @@ const char * token_strs[] = {
     [':'] = ":",
     ['('] = ",",
     [')'] = ",",
-    ['\n'] = "CR",
+    ['\n'] = "\\n",
     [TOK_DIR] = "DIR",
     [TOK_MNEM] = "MNEM",
     [TOK_REG] = "REG",
@@ -20,6 +21,7 @@ const char * token_strs[] = {
     [TOK_NUMBER] = "NUMBER",
     [TOK_IDENT] = "IDENT",
     [TOK_STRING] = "STRING",
+    [TOK_EOF] = "EOF",
     [TOK_INVALID] = "INVALID"
 };
 
@@ -109,6 +111,7 @@ init_tokenizer(Buffer buffer)
     TokenizerState ts = {
         .buffer = buffer,
         .state = ST_INIT,
+        .ln = 1,
         .buf_pos = 0,
         .emit_tok = 0,
         .tok_begin = 0,
@@ -192,6 +195,11 @@ common_next_state(char c)
 static TokenType
 next_char(TokenizerState * ts)
 {
+    if (ts->buf_pos >= ts->buffer.n) {
+        ts->tok_begin = 0;
+        ts->tok_end = 0;
+        return TOK_EOF;
+    }
     char c = ts->buffer.p[ts->buf_pos];
     State next_state = ts->state;
 
@@ -203,9 +211,8 @@ next_char(TokenizerState * ts)
 
     /* TODO: maybe emit the current token? */
     if (c == '\0') {
-        ts->state = ST_INIT;
-        ts->buf_pos++;
-        return TOK_NONE;
+        fprintf(stderr, "error: nul byte on line %d\n", ts->ln);
+        exit(EXIT_FAILURE);
     }
 
     switch (ts->state) {
@@ -325,6 +332,7 @@ next_char(TokenizerState * ts)
             break;
         case ST_NEWLINE:
             next_state = common_next_state(c);
+            ts->ln++;
             tok_typ = '\n';
             break;
         case ST_COLON:
@@ -390,15 +398,12 @@ Token
 get_token(TokenizerState * ts)
 {
     Token tok;
-    while ((tok.t = next_char(ts)) == TOK_NONE) {
-        if (ts->buf_pos >= ts->buffer.n)
-            break;
-    }
-    tok.s[0] = '\0';
-    if (tok.t != TOK_NONE) {
-        strncpy(tok.s, ts->buffer.p + ts->tok_begin, ts->tok_end - ts->tok_begin);
-        tok.s[ts->tok_end - ts->tok_begin] = '\0';
-        //printf("%s(%s) ", token_strs[tok.t], tok.s);
-    }
+    do  {
+        tok.t = next_char(ts);
+    } while (tok.t == TOK_NONE);
+    size_t tok_len = ts->tok_end - ts->tok_begin;
+    strncpy(tok.s, ts->buffer.p + ts->tok_begin, tok_len);
+    tok.s[tok_len] = '\0';
+    //printf("%s(%s) ", token_strs[tok.t], tok.s);
     return tok;
 }

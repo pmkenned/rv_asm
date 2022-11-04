@@ -11,6 +11,7 @@ typedef enum {
     TOK_NUMBER,
     TOK_IDENT,
     TOK_STRING, // TODO
+    TOK_EOF,
     TOK_INVALID
 } TokenType;
 
@@ -37,6 +38,7 @@ typedef enum {
 typedef struct {
     Buffer buffer;
     State state;
+    int ln;
     size_t buf_pos;
     int emit_tok;
     size_t tok_begin;

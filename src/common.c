@@ -92,7 +92,7 @@ read_file(const char * filename)
         exit(EXIT_FAILURE);
     }
     Buffer buffer;
-    buffer.n = (size_t) (sb.st_size+1);
+    buffer.n = (size_t) (sb.st_size);
     buffer.p = malloc(sizeof(*buffer.p)*buffer.n);
     fread(buffer.p, 1, buffer.n, fp);
     if (ferror(fp)) {
@@ -100,6 +100,5 @@ read_file(const char * filename)
         exit(EXIT_FAILURE);
     }
     fclose(fp);
-    buffer.p[buffer.n-1] = '\0';
     return buffer;
 }
