@@ -340,15 +340,14 @@ parse(Buffer buffer)
 
     Token tokens[10];
     int ln = 0;
-    size_t pos = 0;
-    State state = ST_INIT;
-    size_t token_pos = 0;
+    TokenizerState ts = init_tokenizer(buffer);
+
     while (1) {
         ln++;
         Token tok;
         tokens[0].t = '\n'; // TODO: this is a hack
         size_t num_tokens = 0;
-        while (tok = get_token(buffer, &pos, &state, &token_pos), tok.t != '\n' && tok.t != TOK_NULL) {
+        while (tok = get_token(&ts), tok.t != '\n' && tok.t != TOK_NONE) {
             assert(num_tokens < 10); // TODO: error-checking
             memcpy(&tokens[num_tokens], &tok, sizeof(Token));
             num_tokens++;
@@ -365,7 +364,7 @@ parse(Buffer buffer)
                 fprintf(stderr, "error on line %d: symbol '%s' already defined on line %d\n", ln, tokens[0].s, symbols[i].ln);
                 exit(EXIT_FAILURE);
             }
-            add_symbol(strdup(tokens[0].s), curr_addr, ln);
+            add_symbol(tokens[0].s, curr_addr, ln);
             memmove(tokens, &tokens[2], sizeof(tokens[0])*(num_tokens-2));
         }
 
@@ -573,7 +572,7 @@ parse(Buffer buffer)
         } else if (tokens[0].t == '\n') {
         }
 
-        if (tok.t == TOK_NULL)
+        if (tok.t == TOK_NONE)
             break;
     }
 

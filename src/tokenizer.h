@@ -6,7 +6,7 @@ extern char curr_token[1024];
 
 /* TODO: quotation marks for strings */
 typedef enum {
-    TOK_NULL,
+    TOK_NONE,
     TOK_DIR=128,
     TOK_MNEM,
     TOK_REG,
@@ -47,6 +47,15 @@ typedef enum {
     ST_ERR
 } State;
 
+typedef struct {
+    Buffer buffer;
+    State state;
+    size_t buf_pos;
+    size_t tok_pos;
+} TokenizerState;
+
+TokenizerState init_tokenizer(Buffer buffer);
+
 #if 0
 const char * state_strs[] = {
     "INIT",
@@ -68,6 +77,6 @@ typedef struct {
     char s[1024];
 } Token;
 
-Token get_token(Buffer buffer, size_t * pos, State * state, size_t * token_pos);
+Token get_token(TokenizerState * ts);
 
 #endif /* TOKENIZER_H */
