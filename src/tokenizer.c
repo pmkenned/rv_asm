@@ -281,6 +281,8 @@ next_char(TokenizerState * ts)
                 next_state = ST_COMMA;
             } else if (c == ':') {
                 next_state = ST_COLON;
+            } else if (c == '.') {
+                next_state = ST_INIT;
             } else {
                 next_state = ST_ERR;
                 //assert(0);
@@ -358,6 +360,7 @@ next_char(TokenizerState * ts)
             break;
         case ST_ERR:
             fprintf(stdout, "error: invalid lex state\n");
+            assert(0);
             break;
         default:
             assert(0);

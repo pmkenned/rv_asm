@@ -57,8 +57,6 @@ const char * mnemonics[] = {
 
 const size_t num_mnemonics = NELEM(mnemonics);
 
-
-
 /* return index of element in list if present; otherwise, return n */
 size_t
 str_idx_in_list(const char * str, const char * list[], size_t n)

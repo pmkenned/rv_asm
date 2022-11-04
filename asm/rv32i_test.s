@@ -1,7 +1,7 @@
     lui     x1, 0xfffff         # 20-bit imm: 0..1048575
     auipc   x2, 1048575         # 20-bit imm: 0..1048575
     jal     x3, 0x1abcde        # imm[20:1]
-    jalr    x4, 4
+    jalr    x4, 4(ra)
     beq     x5, x6, 10
     bne     x6, x7, 6           # imm[12:1]
     blt     x8, x9, 128         # imm[12:1]

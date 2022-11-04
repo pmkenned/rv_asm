@@ -16,7 +16,7 @@ SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(SRC:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
 DEP = $(OBJ:%.o=%.d)
 
-ASM ?= insert_sort
+ASM ?= rv32i_test
 
 .PHONY: all run test clean
 
