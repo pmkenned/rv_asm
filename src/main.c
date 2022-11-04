@@ -1,66 +1,10 @@
+#include "common.h"
+#include "tokenizer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <assert.h>
 #include <stdint.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-
-#define NELEM(X) sizeof(X)/sizeof(X[0])
-
-typedef struct {
-    char * p;
-    size_t n;
-} Buffer;
-
-/* TODO
-   * directives:
-        .text
-        .data
-        .bss
-        .section
-        .align
-        .balign
-        .globl
-        .string
-        .float
-        .double
-        .option
-   * pseudoinstructions
-   * output to file in binary
-   * output ELF file
-   * parse hex literals
-   * string literals
-   * %hi, %lo?
- */
-
-/* TODO: quotation marks for strings */
-typedef enum {
-    TOK_NULL,
-    TOK_DIR=128,
-    TOK_MNEM,
-    TOK_REG,
-    TOK_CSR, // TODO
-    TOK_NUMBER,
-    TOK_IDENT,
-    TOK_STRING, // TODO
-    TOK_INVALID
-} TokenType;
-
-#if 0
-const char * token_strs[] = {
-    "NULL",
-    "DIR",
-    "MNEM",
-    "REG",
-    "CSR",
-    "NUMBER",
-    "IDENT",
-    "STRING",
-    "INVALID"
-};
-#endif
 
 typedef enum {
     MNEM_LUI,
@@ -189,58 +133,6 @@ format_for_mnemonic(Mnemonic mnemonic)
 }
 #endif
 
-const char * mnemonics[] = {
-    "lui",
-    "auipc",
-    "jal",
-    "jalr",
-    "beq",
-    "bne",
-    "blt",
-    "bge",
-    "bltu",
-    "bgeu",
-    "lb",
-    "lh",
-    "lw",
-    "lbu",
-    "lhu",
-    "sb",
-    "sh",
-    "sw",
-    "addi",
-    "slti",
-    "sltiu",
-    "xori",
-    "ori",
-    "andi",
-    "slli",
-    "srli",
-    "srai",
-    "add",
-    "sub",
-    "sll",
-    "slt",
-    "sltu",
-    "xor",
-    "srl",
-    "sra",
-    "or",
-    "and",
-    "fence",
-    "fence.i",
-    "ecall",
-    "ebreak",
-    "csrrw",
-    "csrrs",
-    "csrrc",
-    "csrrwi",
-    "csrrsi",
-    "csrrci"
-};
-
-const size_t num_mnemonics = NELEM(mnemonics);
-
 uint32_t
 opcodes[] = {
     0x00000037,
@@ -291,80 +183,6 @@ opcodes[] = {
 	0x00006073,
 	0x00007073
 };
-
-/* return index of element in list if present; otherwise, return n */
-static size_t
-str_idx_in_list(const char * str, const char * list[], ssize_t n)
-{
-    ssize_t i;
-    for (i = 0; i < n; i++)
-        if (strcmp(str, list[i]) == 0)
-            break;
-    return i;
-}
-
-const char * directives[] = {
-    ".text",
-    ".data",
-    ".bss",
-    ".section",
-    ".align",
-    ".balign",
-    ".globl",
-    ".string",
-    ".byte",
-    ".half",
-    ".word",
-    ".dword",
-    ".float",
-    ".double",
-    ".option"
-};
-
-const size_t num_directives = NELEM(directives);
-
-const char * reg_names[] = {
-    "x0",
-    "x1", "ra",
-    "x2", "sp",
-    "x3", "gp",
-    "x4", "tp",
-    "x5", "t0",
-    "x6", "t1",
-    "x7", "t2",
-    "x8", "s0", "fp",
-    "x9", "s1",
-    "x10", "a0",
-    "x11", "a1",
-    "x12", "a2",
-    "x13", "a3",
-    "x14", "a4",
-    "x15", "a5",
-    "x16", "a6",
-    "x17", "a7",
-    "x18", "s2",
-    "x19", "s3",
-    "x20", "s4",
-    "x21", "s5",
-    "x22", "s6",
-    "x23", "s7",
-    "x24", "s8",
-    "x25", "s9",
-    "x26", "s10",
-    "x27", "s11",
-    "x28", "t3",
-    "x29", "t4",
-    "x30", "t5",
-    "x31", "t6"
-};
-
-const size_t num_reg_names = NELEM(reg_names);
-
-const char * csr_names[] = {
-    "mstatus"
-};
-
-const size_t num_csr_names = NELEM(csr_names);
 
 /* TODO: decide if this should detect invalid register names */
 static int
@@ -454,310 +272,6 @@ j_fmt_imm(uint32_t imm)
     imm_fmt |= ((imm >> 12) & 0xff);
     return imm_fmt << 12;
 }
-
-static int
-str_in_list(const char * str, const char * list[], size_t n)
-{
-    size_t i;
-    for (i = 0; i < n; i++)
-        if (strcmp(str, list[i]) == 0)
-            return 1;
-    return 0;
-}
-
-static int
-is_mnemonic(const char * s)
-{
-    return str_in_list(s, mnemonics, num_mnemonics);
-}
-
-static int
-is_num(const char * s)
-{
-    if (*s == '-')
-        s++;
-    if (*s == '\0')
-        return 0;
-    while (*s != '\0') {
-        if (!isdigit(*s))
-            return 0;
-        s++;
-    }
-    return 1;
-}
-
-static int
-is_reg(const char * s)
-{
-    return str_in_list(s, reg_names, num_reg_names);
-}
-
-static int
-is_csr(const char * s)
-{
-    return str_in_list(s, csr_names, num_csr_names);
-}
-
-typedef enum {
-    ST_INIT,
-    ST_PERIOD,
-    ST_DIR,
-    ST_LPAREN,
-    ST_RPAREN,
-    ST_NEWLINE,
-    ST_COLON,
-    ST_COMMA,
-    ST_DIGIT,
-    ST_ALPHA,
-    ST_DQUOTE,
-    ST_CLOSE_QUOTE,
-    ST_ERR
-} State;
-
-#if 0
-const char * state_strs[] = {
-    "INIT",
-    "PERIOD",
-    "DIR",
-    "LPAREN",
-    "RPAREN",
-    "NEWLINE",
-    "COLON",
-    "COMMA",
-    "DIGIT",
-    "ALPHA",
-    "ERR"
-};
-#endif
-
-char prev_token[1024];
-char curr_token[1024];
-
-static State
-common_next_state(char c)
-{
-    State next_state;
-    if (isalpha(c) || c == '_') {
-        next_state = ST_ALPHA;
-    } else if (c == '"') {
-        next_state = ST_DQUOTE;
-    } else if (isdigit(c) || c == '-') {
-        next_state = ST_DIGIT;
-    } else if (c == '.') {
-        next_state = ST_PERIOD;
-    } else if (c == '(') {
-        next_state = ST_LPAREN;
-    } else if (c == ')') {
-        next_state = ST_RPAREN;
-    } else if (c == '\n') {
-        next_state = ST_NEWLINE;
-    } else if (c == ':') {
-        next_state = ST_COLON;
-    } else if (c == ',') {
-        next_state = ST_COMMA;
-    } else if (c == ' ') {
-        next_state = ST_INIT;
-    } else {
-        fprintf(stderr, "prev_token: %s\n", prev_token);
-        next_state = ST_ERR;
-        //assert(0);
-    }
-    return next_state;
-}
-
-static TokenType
-next_char(char c, State * state, size_t * token_pos)
-{
-    State next_state = *state;
-
-    TokenType tok_typ = TOK_NULL;
-
-    /* TODO: maybe emit the current token? */
-    if (c == '\0') {
-        *state = ST_INIT;
-        return TOK_NULL;
-    }
-
-    switch (*state) {
-        case ST_INIT:
-            next_state = common_next_state(c);
-            break;
-        case ST_DIGIT:
-            if (isdigit(c)) {
-                next_state = ST_DIGIT;
-            } else if (isblank(c)) {
-                next_state = ST_INIT;
-            } else if (c == '(') {
-                next_state = ST_LPAREN;
-            } else if (c == ')') {
-                next_state = ST_RPAREN;
-            } else if (c == '\n') {
-                next_state = ST_NEWLINE;
-            } else if (c == ',') {
-                next_state = ST_COMMA;
-            } else if (c == ':') {
-                next_state = ST_COLON;
-            } else {
-                next_state = ST_ERR;
-                assert(0);
-            }
-            if (next_state != ST_DIGIT)
-                tok_typ = TOK_NUMBER;
-            break;
-        case ST_ALPHA:
-            if (isalnum(c) || c == '_') {
-                next_state = ST_ALPHA;
-            } else if (isblank(c)) {
-                next_state = ST_INIT;
-            } else if (c == '(') {
-                next_state = ST_LPAREN;
-            } else if (c == ')') {
-                next_state = ST_RPAREN;
-            } else if (c == '\n') {
-                next_state = ST_NEWLINE;
-            } else if (c == ',') {
-                next_state = ST_COMMA;
-            } else if (c == ':') {
-                next_state = ST_COLON;
-            } else {
-                next_state = ST_ERR;
-                //assert(0);
-            }
-            if (next_state != ST_ALPHA) {
-                if (is_reg(curr_token))
-                    tok_typ = TOK_REG;
-                else if (is_csr(curr_token))
-                    tok_typ = TOK_CSR;
-                else if (is_mnemonic(curr_token))
-                    tok_typ = TOK_MNEM;
-                else
-                    tok_typ = TOK_IDENT;
-            }
-            break;
-        case ST_DQUOTE:
-            if (c == '"') {
-                next_state = ST_CLOSE_QUOTE;
-            } else if (c == '\\') {
-                // TODO: support escape sequences
-                assert(0);
-            }
-            break;
-        case ST_CLOSE_QUOTE:
-            next_state = common_next_state(c);
-            tok_typ = TOK_STRING;
-            break;
-        case ST_LPAREN:
-            next_state = common_next_state(c);
-            tok_typ = '(';
-            break;
-        case ST_RPAREN:
-            next_state = common_next_state(c);
-            tok_typ = ')';
-            break;
-        case ST_NEWLINE:
-            next_state = common_next_state(c);
-            tok_typ = '\n';
-            break;
-        case ST_COLON:
-            next_state = common_next_state(c);
-            tok_typ = ':';
-            break;
-        case ST_COMMA:
-            next_state = common_next_state(c);
-            tok_typ = ',';
-            break;
-        case ST_PERIOD:
-            if (isalnum(c)) {
-                next_state = ST_DIR;
-            } else {
-                next_state = ST_ERR;
-                assert(0);
-            }
-            break;
-        case ST_DIR:
-            if (isalpha(c)) {
-                next_state = ST_DIR;
-            } else if (isblank(c)) {
-                next_state = ST_INIT;
-            } else if (c == '\n') {
-                next_state = ST_NEWLINE;
-            } else {
-                next_state = ST_ERR;
-                assert(0);
-            }
-            if (next_state != ST_DIR)
-                tok_typ = TOK_DIR;
-            break;
-        case ST_ERR:
-            fprintf(stdout, "error: invalid lex state\n");
-            break;
-        default:
-            assert(0);
-            break;
-    }
-
-
-    if (tok_typ != TOK_NULL) {
-        strcpy(prev_token, curr_token);
-        *token_pos = 0;
-    }
-    if (next_state != ST_INIT) {
-        curr_token[(*token_pos)++] = c;
-        curr_token[*token_pos] = '\0';
-    }
-
-    *state = next_state;
-
-    //printf("%c\t%s\t%s\n", c, state_strs[*state], token_strs[tok_typ]);
-    if (tok_typ != TOK_NULL) {
-        //printf("%s(%s) ", token_strs[tok_typ], prev_token);
-        //printf("%s ", prev_token);
-    }
-    //if (c == '\n')
-    //    printf("\n");
-
-    return tok_typ;
-}
-
-typedef struct {
-    TokenType t;
-    char s[1024];
-} Token;
-
-/* TODO: this involves excessive copying of return values */
-static Token
-get_token(Buffer buffer, size_t * pos, State * state, size_t * token_pos)
-{
-    Token tok;
-    TokenType t = TOK_NULL;
-    while (*pos < buffer.n) {
-        t = next_char(buffer.p[(*pos)++], state, token_pos);
-        if (t != TOK_NULL)
-            break;
-    }
-    tok.s[0] = '\0';
-    tok.t = t;
-    if (t != TOK_NULL)
-        strcpy(tok.s, prev_token);
-    return tok;
-}
-
-/*
-TODO: lists for .byte, .half, etc. 
-
-valid forms:
-   IDENT COLON
-   DIR
-   DIR NUM
-   DIR IDENT
-   MNEM
-   MNEM IDENT (pseudo-only, e.g. jal label)
-   MNEM REG COMMA IDENT
-   MNEM REG COMMA REG COMMA IDENT
-   MNEM REG COMMA REG COMMA REG
-   MNEM REG COMMA REG COMMA NUM
-   MNEM REG COMMA NUM LPAREN REG RPAREN
-*/
 
 typedef struct {
     char * s;
@@ -977,7 +491,7 @@ parse(Buffer buffer)
 
         } else if (tokens[0].t == TOK_DIR) {
             if (strcmp(tokens[0].s, ".byte") == 0) {
-                assert(is_num(tokens[1].s));
+                //assert(is_num(tokens[1].s));
                 uint32_t word  = output[curr_addr/4];
                 if (curr_addr % 4 == 0) {
                     word &= 0xffffff00;
@@ -997,7 +511,7 @@ parse(Buffer buffer)
                 num_words = curr_addr/4;
                 // TODO: what if a .byte is followed by something wider?
             } else if (strcmp(tokens[0].s, ".half") == 0) {
-                assert(is_num(tokens[1].s));
+                //assert(is_num(tokens[1].s));
                 uint32_t word  = output[curr_addr/4];
                 if (curr_addr % 4 == 0) {
                     word &= 0xffff0000;
@@ -1012,13 +526,13 @@ parse(Buffer buffer)
                 curr_addr += 2;
                 num_words = curr_addr/4;
             } else if (strcmp(tokens[0].s, ".word") == 0) {
-                assert(is_num(tokens[1].s));
+                //assert(is_num(tokens[1].s));
                 assert(curr_addr % 4 == 0);
                 output[curr_addr/4] = atoi(tokens[1].s);
                 curr_addr += 4;
                 num_words = curr_addr/4;
             } else if (strcmp(tokens[0].s, ".dword") == 0) {
-                assert(is_num(tokens[1].s));
+                //assert(is_num(tokens[1].s));
                 assert(curr_addr % 8 == 0);
                 output[curr_addr/4] = (atoll(tokens[1].s) & 0x00000000ffffffff);
                 curr_addr += 4;
@@ -1129,32 +643,6 @@ strip_comments(char * s)
                 comment_flag = 0;
         }
     }
-}
-
-static Buffer
-read_file(const char * filename)
-{
-    FILE * fp = fopen(filename, "r");
-    if (fp == NULL) {
-        perror(filename);
-        exit(EXIT_FAILURE);
-    }
-    struct stat sb;
-    if (fstat(fileno(fp), &sb) == -1) {
-        perror(filename);
-        exit(EXIT_FAILURE);
-    }
-    Buffer buffer;
-    buffer.n = (size_t) (sb.st_size+1);
-    buffer.p = malloc(sizeof(*buffer.p)*buffer.n);
-    fread(buffer.p, 1, buffer.n, fp);
-    if (ferror(fp)) {
-        perror(filename);
-        exit(EXIT_FAILURE);
-    }
-    fclose(fp);
-    buffer.p[buffer.n-1] = '\0';
-    return buffer;
 }
 
 int

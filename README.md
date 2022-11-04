@@ -3,6 +3,27 @@ RISC-V Assembler
 
 ## Notes
 
+### TODO
+- directives:
+    .text
+    .data
+    .bss
+    .section
+    .align
+    .balign
+    .globl
+    .string
+    .float
+    .double
+    .option
+- pseudoinstructions
+- output to file in binary
+- output ELF file
+- parse hex literals
+- string literals
+- %hi, %lo?
+- lists for .byte, .half, etc.
+
 ### RV32I and RV64I:
 ```
 add         rd, rs1, rs2
@@ -448,4 +469,17 @@ rd, csr                 FMT_REG_CSR
 rd, csr, rs1            FMT_REG_CSR_REG
 rd, csr, zimm[4:0]      FMT_REG_CSR_NUM
 pred, succ              FMT_IORW_IORW
+
+valid forms:
+   IDENT COLON
+   DIR
+   DIR NUM
+   DIR IDENT
+   MNEM
+   MNEM IDENT (pseudo-only, e.g. jal label)
+   MNEM REG COMMA IDENT
+   MNEM REG COMMA REG COMMA IDENT
+   MNEM REG COMMA REG COMMA REG
+   MNEM REG COMMA REG COMMA NUM
+   MNEM REG COMMA NUM LPAREN REG RPAREN
 ```
