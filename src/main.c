@@ -6,6 +6,8 @@
 #include <assert.h>
 #include <stdint.h>
 
+#define MAX_TOKENS 10
+
 typedef enum {
     MNEM_LUI,
     MNEM_AUIPC,
@@ -297,7 +299,7 @@ size_t num_symbols;
 size_t symbols_cap;
 
 static size_t
-lookup_symbol(char * s)
+lookup_symbol(const char * s)
 {
     size_t i;
     for (i = 0; i < num_symbols; i++) {
@@ -310,6 +312,11 @@ lookup_symbol(char * s)
 static void
 add_symbol(const char * s, uint32_t curr_addr, int ln)
 {
+    size_t idx = lookup_symbol(s);
+    if (idx < num_symbols) {
+        fprintf(stderr, "error on line %d: symbol '%s' already defined on line %d\n", ln, s, symbols[idx].ln);
+        exit(EXIT_FAILURE);
+    }
     symbols[num_symbols].s = strdup(s);
     symbols[num_symbols].addr = curr_addr;
     symbols[num_symbols].ln = ln;
@@ -317,6 +324,15 @@ add_symbol(const char * s, uint32_t curr_addr, int ln)
     if (num_symbols >= symbols_cap) {
         symbols_cap *= 2;
         symbols = realloc(symbols, sizeof(*symbols)*symbols_cap);
+    }
+}
+
+static void
+expect_n_tokens(num_tokens, n, ln)
+{
+    if (num_tokens != n) {
+        fprintf(stderr, "error: unexpected tokens on line %d\n", ln);
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -338,10 +354,9 @@ parse(Buffer buffer)
 
     uint32_t curr_addr = 0;
 
-    Token tokens[10];
+    Token tokens[MAX_TOKENS];
     int ln = 0;
     TokenizerState ts = init_tokenizer(buffer);
-
     while (1) {
         ln++;
         Token tok;
@@ -351,41 +366,40 @@ parse(Buffer buffer)
             tok = get_token(&ts);
             if (tok.t == '\n' || tok.t == TOK_EOF)
                 break;
-            assert(num_tokens < 10); // TODO: error-checking
+            if (num_tokens >= MAX_TOKENS) {
+                fprintf(stderr, "error: too many tokens on line %d\n", ln);
+                exit(EXIT_FAILURE);
+            }
             memcpy(&tokens[num_tokens], &tok, sizeof(Token));
             num_tokens++;
-            //printf("%s (%s) ", token_strs[tok.t], tok.s);
         }
 
+        // labels
         if (tokens[0].t == TOK_IDENT) {
             if (num_tokens < 2 || tokens[1].t != ':') {
                 fprintf(stderr, "parse error on line %d\n", ln);
                 exit(EXIT_FAILURE);
             }
-            size_t i;
-            if ((i = lookup_symbol(tokens[0].s)) < num_symbols) {
-                fprintf(stderr, "error on line %d: symbol '%s' already defined on line %d\n", ln, tokens[0].s, symbols[i].ln);
-                exit(EXIT_FAILURE);
-            }
             add_symbol(tokens[0].s, curr_addr, ln);
             memmove(tokens, &tokens[2], sizeof(tokens[0])*(num_tokens-2));
+            num_tokens -= 2;
         }
 
         uint32_t opcode;
         if (tokens[0].t == TOK_MNEM) {
 
             Mnemonic mnemonic = str_idx_in_list(tokens[0].s, mnemonics, num_mnemonics);
-
-            assert(mnemonic != MNEM_INVALID); // TODO: error handling
-
+            if (mnemonic == MNEM_INVALID) {
+                fprintf(stderr, "error: invalid mnemonic on line %d\n", ln);
+                exit(EXIT_FAILURE);
+            }
             opcode = opcodes[mnemonic];
-
             Format fmt = format_for_mnemonic(mnemonic);
-
             uint32_t rd, rs1, rs2, imm, imm_fmt;
 
             switch (fmt) {
                 case FMT_NONE:
+                    expect_n_tokens(num_tokens, 1, ln);
                     break;
 
                 case FMT_NONE_OR_IORW:
@@ -401,6 +415,8 @@ parse(Buffer buffer)
                         rd = reg_name_to_bits("x1");
                         if (tokens[1].t == TOK_NUMBER)
                             imm = strtol(tokens[1].s, NULL, 0);
+                    } else {
+                        expect_n_tokens(num_tokens, 4, ln);
                     }
 
                     if ((num_tokens == 2 && tokens[1].t == TOK_IDENT) ||
@@ -423,12 +439,14 @@ parse(Buffer buffer)
                     break;
 
                 case FMT_REG_NUM:
+                    expect_n_tokens(num_tokens, 4, ln);
                     rd  = reg_name_to_bits(tokens[1].s);
                     imm = strtol(tokens[3].s, NULL, 0);
                     opcode |= u_fmt_imm(imm) | (rd << 7);
                     break;
 
                 case FMT_REG_REG_REG:
+                    expect_n_tokens(num_tokens, 6, ln);
                     rd  = reg_name_to_bits(tokens[1].s);
                     rs1 = reg_name_to_bits(tokens[3].s);
                     rs2 = reg_name_to_bits(tokens[5].s);
@@ -436,6 +454,7 @@ parse(Buffer buffer)
                     break;
 
                 case FMT_REG_REG_OFFSET:
+                    expect_n_tokens(num_tokens, 6, ln);
                     rs1 = reg_name_to_bits(tokens[1].s);
                     rs2 = reg_name_to_bits(tokens[3].s);
                     if (tokens[5].t == TOK_NUMBER)
@@ -457,6 +476,7 @@ parse(Buffer buffer)
                     break;
 
                 case FMT_REG_REG_NUM:
+                    expect_n_tokens(num_tokens, 6, ln);
                     rd = reg_name_to_bits(tokens[1].s);
                     rs1 = reg_name_to_bits(tokens[3].s);
                     imm = strtol(tokens[5].s, NULL, 0);
@@ -464,6 +484,7 @@ parse(Buffer buffer)
                     break;
 
                 case FMT_REG_NUM_REG:
+                    expect_n_tokens(num_tokens, 7, ln);
                     imm = strtol(tokens[3].s, NULL, 0);
                     rs1 = reg_name_to_bits(tokens[5].s);
                     if (mnemonic == MNEM_SW) {
@@ -477,11 +498,20 @@ parse(Buffer buffer)
                     }
                     break;
 
+                case FMT_REG_CSR_REG:
+                    /* TODO */
+                    break;
+
+                case FMT_REG_CSR_NUM:
+                    /* TODO */
+                    break;
+
                 case FMT_INVALID:
+                    assert(0);
                     break;
 
                 default:
-                    //assert(0);
+                    assert(0);
                     break;
             }
 
