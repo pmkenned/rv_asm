@@ -762,6 +762,7 @@ valid forms:
 typedef struct {
     char * s;
     uint32_t addr;
+    int ln;
 } Symbol;
 
 // TODO
@@ -774,17 +775,45 @@ typedef struct {
     char * s;
     RefType t;
     uint32_t addr;
+    int ln;
 } Ref;
+
+Symbol * symbols;
+size_t num_symbols;
+size_t symbols_cap;
+
+static size_t
+lookup_symbol(char * s)
+{
+    size_t i;
+    for (i = 0; i < num_symbols; i++) {
+        if (strcmp(symbols[i].s, s) == 0)
+            break;
+    }
+    return i;
+}
+
+static void
+add_symbol(const char * s, uint32_t curr_addr, int ln)
+{
+    symbols[num_symbols].s = strdup(s);
+    symbols[num_symbols].addr = curr_addr;
+    symbols[num_symbols].ln = ln;
+    num_symbols++;
+    if (num_symbols >= symbols_cap) {
+        symbols_cap *= 2;
+        symbols = realloc(symbols, sizeof(*symbols)*symbols_cap);
+    }
+}
 
 /* TODO: separate parsing from outputting */
 static void
 parse(Buffer buffer)
 {
-
     // TODO: should be a dict
-    size_t num_symbols = 0;
-    size_t symbols_cap = 10;
-    Symbol * symbols = malloc(sizeof(*symbols)*symbols_cap);
+    num_symbols = 0;
+    symbols_cap = 10;
+    symbols = malloc(sizeof(*symbols)*symbols_cap);
 
     size_t num_refs = 0;
     size_t refs_cap = 10;
@@ -795,26 +824,36 @@ parse(Buffer buffer)
 
     uint32_t curr_addr = 0;
 
-    size_t i;
     Token tokens[10];
-    Token tok;
-    size_t ti;
     int ln = 0;
     size_t pos = 0;
     State state = ST_INIT;
     size_t token_pos = 0;
     while (1) {
         ln++;
-        ti = 0;
+        Token tok;
         tokens[0].t = '\n'; // TODO: this is a hack
+        size_t num_tokens = 0;
         while (tok = get_token(buffer, &pos, &state, &token_pos), tok.t != '\n' && tok.t != TOK_NULL) {
-            assert(ti < 10);
-            memcpy(tokens+ti, &tok, sizeof(Token));
-            ti++;
+            assert(num_tokens < 10); // TODO: error-checking
+            memcpy(&tokens[num_tokens], &tok, sizeof(Token));
+            num_tokens++;
             //printf("%s (%s) ", token_strs[tok.t], tok.s);
         }
 
-        size_t num_tokens = ti;
+        if (tokens[0].t == TOK_IDENT) {
+            if (num_tokens < 2 || tokens[1].t != ':') {
+                fprintf(stderr, "parse error on line %d\n", ln);
+                exit(EXIT_FAILURE);
+            }
+            size_t i;
+            if ((i = lookup_symbol(tokens[0].s)) < num_symbols) {
+                fprintf(stderr, "error on line %d: symbol '%s' already defined on line %d\n", ln, tokens[0].s, symbols[i].ln);
+                exit(EXIT_FAILURE);
+            }
+            add_symbol(strdup(tokens[0].s), curr_addr, ln);
+            memmove(tokens, &tokens[2], sizeof(tokens[0])*(num_tokens-2));
+        }
 
         uint32_t opcode;
         if (tokens[0].t == TOK_MNEM) {
@@ -850,9 +889,11 @@ parse(Buffer buffer)
 
                     if ((num_tokens == 2 && tokens[1].t == TOK_IDENT) ||
                         (num_tokens == 4 && tokens[3].t == TOK_IDENT)) {
+                        // TODO: handle num_tokens == 2 case
                         refs[num_refs].s = strdup(tokens[3].s);
                         refs[num_refs].t = REF_J;
                         refs[num_refs].addr = curr_addr;
+                        refs[num_refs].ln = ln;
                         num_refs++;
                         if (num_refs >= refs_cap) {
                             refs_cap *= 2;
@@ -887,6 +928,7 @@ parse(Buffer buffer)
                         refs[num_refs].s = strdup(tokens[5].s);
                         refs[num_refs].t = REF_B;
                         refs[num_refs].addr = curr_addr;
+                        refs[num_refs].ln = ln;
                         num_refs++;
                         if (num_refs >= refs_cap) {
                             refs_cap *= 2;
@@ -917,8 +959,6 @@ parse(Buffer buffer)
                         imm_fmt = i_fmt_imm(imm);
                         opcode |= imm_fmt | (rs1 << 15) | (rd << 7);
                     }
-                    break;
-
                     break;
 
                 case FMT_INVALID:
@@ -1016,19 +1056,6 @@ parse(Buffer buffer)
             } else {
                 // TODO
             }
-        } else if (tokens[0].t == TOK_IDENT) {
-
-            assert(num_tokens == 2 && tokens[1].t == ':'); // TODO: error checking
-
-            // TODO: check if the symbol is already defined
-            symbols[num_symbols].s = strdup(tokens[0].s);
-            symbols[num_symbols].addr = curr_addr;
-            num_symbols++;
-            if (num_symbols >= symbols_cap) {
-                symbols_cap *= 2;
-                symbols = realloc(symbols, sizeof(*symbols)*symbols_cap);
-            }
-
         } else if (tokens[0].t == '\n') {
         }
 
@@ -1037,19 +1064,15 @@ parse(Buffer buffer)
     }
 
     /* back-fill the references */
-    for (i = 0; i < num_refs; i++) {
+    for (size_t i = 0; i < num_refs; i++) {
         uint32_t word_idx = refs[i].addr/4;
         uint32_t opcode = output[word_idx];
 
-        size_t j;
-        int found = 0;
-        for (j = 0; j < num_symbols; j++) {
-            if (strcmp(symbols[j].s, refs[i].s) == 0) {
-                found = 1;
-                break;
-            }
+        size_t j = lookup_symbol(refs[i].s);
+        if (j == num_symbols) {
+            fprintf(stderr, "error: undefined symbol %s on line %d\n", refs[i].s, refs[i].ln);
+            exit(EXIT_FAILURE);
         }
-        assert(found);
         uint32_t offset = symbols[j].addr - refs[i].addr;
 
         if (refs[i].t == REF_J) {
@@ -1057,13 +1080,12 @@ parse(Buffer buffer)
         } else if (refs[i].t == REF_B) {
             opcode |= b_fmt_imm(offset);
         } else {
-            // TODO: print error message, "referenced undefined symbol %s"
             assert(0);
         }
         output[word_idx] = opcode;
     }
 
-    for (i = 0; i < num_words; i++) {
+    for (size_t i = 0; i < num_words; i++) {
         printf("%08x\n", output[i]);
         //printf("%02lx: 0x%08x\n", i*4, output[i]);
     }
