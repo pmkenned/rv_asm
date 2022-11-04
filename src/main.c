@@ -393,11 +393,11 @@ parse(Buffer buffer)
                     if (num_tokens == 4) {
                         rd = reg_name_to_bits(tokens[1].s);
                         if (tokens[3].t == TOK_NUMBER)
-                            imm = atoi(tokens[3].s);
+                            imm = strtol(tokens[3].s, NULL, 0);
                     } else if (num_tokens == 2) {
                         rd = reg_name_to_bits("x1");
                         if (tokens[1].t == TOK_NUMBER)
-                            imm = atoi(tokens[1].s);
+                            imm = strtol(tokens[1].s, NULL, 0);
                     }
 
                     if ((num_tokens == 2 && tokens[1].t == TOK_IDENT) ||
@@ -421,7 +421,7 @@ parse(Buffer buffer)
 
                 case FMT_REG_NUM:
                     rd  = reg_name_to_bits(tokens[1].s);
-                    imm = atoi(tokens[3].s);
+                    imm = strtol(tokens[3].s, NULL, 0);
                     opcode |= u_fmt_imm(imm) | (rd << 7);
                     break;
 
@@ -436,7 +436,7 @@ parse(Buffer buffer)
                     rs1 = reg_name_to_bits(tokens[1].s);
                     rs2 = reg_name_to_bits(tokens[3].s);
                     if (tokens[5].t == TOK_NUMBER)
-                        imm = atoi(tokens[5].s);
+                        imm = strtol(tokens[5].s, NULL, 0);
                     else {
                         refs[num_refs].s = strdup(tokens[5].s);
                         refs[num_refs].t = REF_B;
@@ -456,12 +456,12 @@ parse(Buffer buffer)
                 case FMT_REG_REG_NUM:
                     rd = reg_name_to_bits(tokens[1].s);
                     rs1 = reg_name_to_bits(tokens[3].s);
-                    imm = atoi(tokens[5].s);
+                    imm = strtol(tokens[5].s, NULL, 0);
                     opcode |= (imm << 20) | (rs1 << 15) | (rd << 7);
                     break;
 
                 case FMT_REG_NUM_REG:
-                    imm = atoi(tokens[3].s);
+                    imm = strtol(tokens[3].s, NULL, 0);
                     rs1 = reg_name_to_bits(tokens[5].s);
                     if (mnemonic == MNEM_SW) {
                         rs2 = reg_name_to_bits(tokens[1].s);
@@ -494,16 +494,16 @@ parse(Buffer buffer)
                 uint32_t word  = output[curr_addr/4];
                 if (curr_addr % 4 == 0) {
                     word &= 0xffffff00;
-                    word |= atoi(tokens[1].s) & 0xff;
+                    word |= strtol(tokens[1].s, NULL, 0) & 0xff;
                 } else if (curr_addr % 4 == 1) {
                     word &= 0xffff00ff;
-                    word |= (atoi(tokens[1].s) & 0xff) << 8;
+                    word |= (strtol(tokens[1].s, NULL, 0) & 0xff) << 8;
                 } else if (curr_addr % 4 == 2) {
                     word &= 0xff00ffff;
-                    word |= (atoi(tokens[1].s) & 0xff) << 16;
+                    word |= (strtol(tokens[1].s, NULL, 0) & 0xff) << 16;
                 } else if (curr_addr % 4 == 3) {
                     word &= 0x00ffffff;
-                    word |= (atoi(tokens[1].s) & 0xff) << 24;
+                    word |= (strtol(tokens[1].s, NULL, 0) & 0xff) << 24;
                 }
                 output[curr_addr/4] = word;
                 curr_addr += 1;
@@ -514,10 +514,10 @@ parse(Buffer buffer)
                 uint32_t word  = output[curr_addr/4];
                 if (curr_addr % 4 == 0) {
                     word &= 0xffff0000;
-                    word |= atoi(tokens[1].s) & 0xffff;
+                    word |= strtol(tokens[1].s, NULL, 0) & 0xffff;
                 } else if (curr_addr % 4 == 2) {
                     word &= 0x0000ffff;
-                    word |= (atoi(tokens[1].s) & 0xffff) << 16;
+                    word |= (strtol(tokens[1].s, NULL, 0) & 0xffff) << 16;
                 } else {
                     assert(0);
                 }
@@ -527,7 +527,7 @@ parse(Buffer buffer)
             } else if (strcmp(tokens[0].s, ".word") == 0) {
                 //assert(is_num(tokens[1].s));
                 assert(curr_addr % 4 == 0);
-                output[curr_addr/4] = atoi(tokens[1].s);
+                output[curr_addr/4] = strtol(tokens[1].s, NULL, 0);
                 curr_addr += 4;
                 num_words = curr_addr/4;
             } else if (strcmp(tokens[0].s, ".dword") == 0) {

@@ -19,7 +19,6 @@ RISC-V Assembler
 - pseudoinstructions
 - output to file in binary
 - output ELF file
-- parse hex literals
 - string literals
 - %hi, %lo?
 - lists for .byte, .half, etc.

@@ -160,8 +160,12 @@ common_next_state(char c)
         next_state = ST_ALPHA;
     } else if (c == '"') {
         next_state = ST_DQUOTE;
-    } else if (isdigit(c) || c == '-') {
-        next_state = ST_DIGIT;
+    } else if (c == '-') {
+        next_state = ST_MINUS;
+    } else if (c == '0') {
+        next_state = ST_ZERO;
+    } else if (c >= '1' && c <= '9') {
+        next_state = ST_DEC;
     } else if (c == '.') {
         next_state = ST_PERIOD;
     } else if (c == '(') {
@@ -208,9 +212,24 @@ next_char(TokenizerState * ts)
         case ST_INIT:
             next_state = common_next_state(c);
             break;
-        case ST_DIGIT:
+        case ST_MINUS:
+            next_state = common_next_state(c);
+            if (next_state == ST_MINUS)
+                assert(0);
+            break;
+        case ST_ZERO:
+            next_state = common_next_state(c);
+            if (c == 'x' || c == 'X') {
+                next_state = ST_HEX;
+            } else if (c >= '0' && c <= '7') {
+                next_state = ST_OCT;
+            }
+            if (next_state != ST_HEX && next_state != ST_OCT)
+                tok_typ = TOK_NUMBER;
+            break;
+        case ST_DEC:
             if (isdigit(c)) {
-                next_state = ST_DIGIT;
+                next_state = ST_DEC;
             } else if (isblank(c)) {
                 next_state = ST_INIT;
             } else if (c == '(') {
@@ -227,7 +246,24 @@ next_char(TokenizerState * ts)
                 next_state = ST_ERR;
                 assert(0);
             }
-            if (next_state != ST_DIGIT)
+            if (next_state != ST_DEC)
+                tok_typ = TOK_NUMBER;
+            break;
+        case ST_OCT:
+            next_state = common_next_state(c);
+            if (c >= '0' && c <= '7') {
+                next_state = ST_OCT;
+            }
+            if (next_state != ST_OCT)
+                tok_typ = TOK_NUMBER;
+            break;
+        case ST_HEX:
+            next_state = common_next_state(c);
+            c = tolower(c);
+            if (isdigit(c) || (c >= 'a' && c <= 'f')) {
+                next_state = ST_HEX;
+            }
+            if (next_state != ST_HEX)
                 tok_typ = TOK_NUMBER;
             break;
         case ST_ALPHA:
