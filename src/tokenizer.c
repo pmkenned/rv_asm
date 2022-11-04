@@ -5,8 +5,40 @@
 #include <stdio.h>
 #include <ctype.h>
 
-char prev_token[1024];
-char curr_token[1024];
+#if 1
+const char * token_strs[] = {
+    [TOK_NONE] = "NONE",
+    [','] = ",",
+    [':'] = ":",
+    ['('] = ",",
+    [')'] = ",",
+    ['\n'] = "CR",
+    [TOK_DIR] = "DIR",
+    [TOK_MNEM] = "MNEM",
+    [TOK_REG] = "REG",
+    [TOK_CSR] = "CSR",
+    [TOK_NUMBER] = "NUMBER",
+    [TOK_IDENT] = "IDENT",
+    [TOK_STRING] = "STRING",
+    [TOK_INVALID] = "INVALID"
+};
+
+const char * state_strs[] = {
+    "INIT",
+    "PERIOD",
+    "DIR",
+    "LPAREN",
+    "RPAREN",
+    "NEWLINE",
+    "COLON",
+    "COMMA",
+    "DIGIT",
+    "ALPHA",
+    "DQUOTE",
+    "CLOSE_QUOTE",
+    "ERR"
+};
+#endif
 
 const char * reg_names[] = {
     "x0",
@@ -78,7 +110,9 @@ init_tokenizer(Buffer buffer)
         .buffer = buffer,
         .state = ST_INIT,
         .buf_pos = 0,
-        .tok_pos = 0
+        .emit_tok = 0,
+        .tok_begin = 0,
+        .tok_end = 0
     };
     return ts;
 }
@@ -143,27 +177,34 @@ common_next_state(char c)
     } else if (c == ' ') {
         next_state = ST_INIT;
     } else {
-        fprintf(stderr, "prev_token: %s\n", prev_token);
+        //fprintf(stderr, "prev_token: %s\n", prev_token);
         next_state = ST_ERR;
         //assert(0);
     }
     return next_state;
 }
 
+
 static TokenType
-next_char(char c, State * state, size_t * token_pos)
+next_char(TokenizerState * ts)
 {
-    State next_state = *state;
+    char c = ts->buffer.p[ts->buf_pos];
+    State next_state = ts->state;
+
+    if (ts->emit_tok) {
+        ts->tok_begin = ts->buf_pos-1;
+    }
 
     TokenType tok_typ = TOK_NONE;
 
     /* TODO: maybe emit the current token? */
     if (c == '\0') {
-        *state = ST_INIT;
+        ts->state = ST_INIT;
+        ts->buf_pos++;
         return TOK_NONE;
     }
 
-    switch (*state) {
+    switch (ts->state) {
         case ST_INIT:
             next_state = common_next_state(c);
             break;
@@ -209,6 +250,10 @@ next_char(char c, State * state, size_t * token_pos)
                 //assert(0);
             }
             if (next_state != ST_ALPHA) {
+                // TODO: this is an ugly hack
+                char * curr_token = ts->buffer.p + ts->tok_begin;
+                char t = ts->buffer.p[ts->buf_pos];
+                ts->buffer.p[ts->buf_pos] = '\0';
                 if (is_reg(curr_token))
                     tok_typ = TOK_REG;
                 else if (is_csr(curr_token))
@@ -217,6 +262,7 @@ next_char(char c, State * state, size_t * token_pos)
                     tok_typ = TOK_MNEM;
                 else
                     tok_typ = TOK_IDENT;
+                ts->buffer.p[ts->buf_pos] = t;
             }
             break;
         case ST_DQUOTE:
@@ -282,26 +328,21 @@ next_char(char c, State * state, size_t * token_pos)
             break;
     }
 
-
     if (tok_typ != TOK_NONE) {
-        strcpy(prev_token, curr_token);
-        *token_pos = 0;
-    }
-    if (next_state != ST_INIT) {
-        curr_token[(*token_pos)++] = c;
-        curr_token[*token_pos] = '\0';
+        ts->tok_end = ts->buf_pos;
+        ts->emit_tok = 1;
+    } else {
+        ts->emit_tok = 0;
     }
 
-    *state = next_state;
-
-    //printf("%c\t%s\t%s\n", c, state_strs[*state], token_strs[tok_typ]);
-    if (tok_typ != TOK_NONE) {
-        //printf("%s(%s) ", token_strs[tok_typ], prev_token);
-        //printf("%s ", prev_token);
+    if (ts->state == ST_INIT && next_state != ST_INIT) {
+        assert(ts->emit_tok == 0);
+        ts->tok_begin = ts->buf_pos;
     }
-    //if (c == '\n')
-    //    printf("\n");
 
+    ts->state = next_state;
+    ts->buf_pos++;
+    //printf("'%c'\t%s\t%s\n", c, state_strs[ts->state], token_strs[tok_typ]);
     return tok_typ;
 }
 
@@ -310,15 +351,15 @@ Token
 get_token(TokenizerState * ts)
 {
     Token tok;
-    TokenType t = TOK_NONE;
-    while (ts->buf_pos < ts->buffer.n) {
-        t = next_char(ts->buffer.p[ts->buf_pos++], &ts->state, &ts->tok_pos);
-        if (t != TOK_NONE)
+    while ((tok.t = next_char(ts)) == TOK_NONE) {
+        if (ts->buf_pos >= ts->buffer.n)
             break;
     }
     tok.s[0] = '\0';
-    tok.t = t;
-    if (t != TOK_NONE)
-        strcpy(tok.s, prev_token);
+    if (tok.t != TOK_NONE) {
+        strncpy(tok.s, ts->buffer.p + ts->tok_begin, ts->tok_end - ts->tok_begin);
+        tok.s[ts->tok_end - ts->tok_begin] = '\0';
+        //printf("%s(%s) ", token_strs[tok.t], tok.s);
+    }
     return tok;
 }

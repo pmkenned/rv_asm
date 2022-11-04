@@ -1,9 +1,6 @@
 #ifndef TOKENIZER_H
 #define TOKENIZER_H
 
-extern char prev_token[1024];
-extern char curr_token[1024];
-
 /* TODO: quotation marks for strings */
 typedef enum {
     TOK_NONE,
@@ -16,20 +13,6 @@ typedef enum {
     TOK_STRING, // TODO
     TOK_INVALID
 } TokenType;
-
-#if 0
-const char * token_strs[] = {
-    "NULL",
-    "DIR",
-    "MNEM",
-    "REG",
-    "CSR",
-    "NUMBER",
-    "IDENT",
-    "STRING",
-    "INVALID"
-};
-#endif
 
 typedef enum {
     ST_INIT,
@@ -51,32 +34,17 @@ typedef struct {
     Buffer buffer;
     State state;
     size_t buf_pos;
-    size_t tok_pos;
+    int emit_tok;
+    size_t tok_begin;
+    size_t tok_end;
 } TokenizerState;
-
-TokenizerState init_tokenizer(Buffer buffer);
-
-#if 0
-const char * state_strs[] = {
-    "INIT",
-    "PERIOD",
-    "DIR",
-    "LPAREN",
-    "RPAREN",
-    "NEWLINE",
-    "COLON",
-    "COMMA",
-    "DIGIT",
-    "ALPHA",
-    "ERR"
-};
-#endif
 
 typedef struct {
     TokenType t;
-    char s[1024];
+    char s[64];
 } Token;
 
+TokenizerState init_tokenizer(Buffer buffer);
 Token get_token(TokenizerState * ts);
 
 #endif /* TOKENIZER_H */
