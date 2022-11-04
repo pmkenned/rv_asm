@@ -290,6 +290,7 @@ fcvt.s.lu   rd, rs1, rs2
 ```
 
 ### RV32D and RV64D:
+```
 fabs.d      rd, rs1
 fadd.d      rd, rs1, rs2
 fclass.d    rd, rs1, rs2
@@ -325,6 +326,7 @@ fsgnjn.d    rd, rs1, rs2
 fsgnjx.d    rd, rs1, rs2
 fsqrt.d     rd, rs1, rs2
 fsub.d      rd, rs1, rs2
+```
 
 ### RV64D only:
 ```
