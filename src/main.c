@@ -12,7 +12,7 @@
 typedef struct {
     char * p;
     size_t n;
-} buffer_t;
+} Buffer;
 
 /* TODO
    * directives:
@@ -46,7 +46,7 @@ typedef enum {
     TOK_IDENT,
     TOK_STRING, // TODO
     TOK_INVALID
-} token_typ_t;
+} TokenType;
 
 #if 0
 const char * token_strs[] = {
@@ -111,7 +111,7 @@ typedef enum {
     MNEM_CSRRSI,
     MNEM_CSRRCI,
     MNEM_INVALID,
-} mnemonic_t;
+} Mnemonic;
 
 #if 1
 // OFFSET: NUMBER or IDENT
@@ -127,10 +127,10 @@ typedef enum {
     FMT_REG_CSR_REG,
     FMT_REG_CSR_NUM,
     FMT_INVALID
-} fmt_t;
+} Format;
 
-static fmt_t
-format_for_mnemonic(mnemonic_t mnemonic)
+static Format
+format_for_mnemonic(Mnemonic mnemonic)
 {
     switch (mnemonic) {
         case MNEM_LUI:      return FMT_REG_NUM;                 break;
@@ -512,7 +512,7 @@ typedef enum {
     ST_DQUOTE,
     ST_CLOSE_QUOTE,
     ST_ERR
-} state_t;
+} State;
 
 #if 0
 const char * state_strs[] = {
@@ -533,10 +533,10 @@ const char * state_strs[] = {
 char prev_token[1024];
 char curr_token[1024];
 
-static state_t
+static State
 common_next_state(char c)
 {
-    state_t next_state;
+    State next_state;
     if (isalpha(c) || c == '_') {
         next_state = ST_ALPHA;
     } else if (c == '"') {
@@ -565,12 +565,12 @@ common_next_state(char c)
     return next_state;
 }
 
-static token_typ_t
-next_char(char c, state_t * state, size_t * token_pos)
+static TokenType
+next_char(char c, State * state, size_t * token_pos)
 {
-    state_t next_state = *state;
+    State next_state = *state;
 
-    token_typ_t tok_typ = TOK_NULL;
+    TokenType tok_typ = TOK_NULL;
 
     /* TODO: maybe emit the current token? */
     if (c == '\0') {
@@ -720,16 +720,16 @@ next_char(char c, state_t * state, size_t * token_pos)
 }
 
 typedef struct {
-    token_typ_t t;
+    TokenType t;
     char s[1024];
-} token_t;
+} Token;
 
 /* TODO: this involves excessive copying of return values */
-static token_t
-get_token(buffer_t buffer, size_t * pos, state_t * state, size_t * token_pos)
+static Token
+get_token(Buffer buffer, size_t * pos, State * state, size_t * token_pos)
 {
-    token_t tok;
-    token_typ_t t = TOK_NULL;
+    Token tok;
+    TokenType t = TOK_NULL;
     while (*pos < buffer.n) {
         t = next_char(buffer.p[(*pos)++], state, token_pos);
         if (t != TOK_NULL)
@@ -762,33 +762,33 @@ valid forms:
 typedef struct {
     char * s;
     uint32_t addr;
-} symbol_t;
+} Symbol;
 
 // TODO
 typedef enum {
     REF_J,
     REF_B
-} ref_type_t;
+} RefType;
 
 typedef struct {
     char * s;
-    ref_type_t t;
+    RefType t;
     uint32_t addr;
-} ref_t;
+} Ref;
 
 /* TODO: separate parsing from outputting */
 static void
-parse(buffer_t buffer)
+parse(Buffer buffer)
 {
 
     // TODO: should be a dict
     size_t num_symbols = 0;
     size_t symbols_cap = 10;
-    symbol_t * symbols = malloc(sizeof(*symbols)*symbols_cap);
+    Symbol * symbols = malloc(sizeof(*symbols)*symbols_cap);
 
     size_t num_refs = 0;
     size_t refs_cap = 10;
-    ref_t * refs = malloc(sizeof(*refs)*refs_cap);
+    Ref * refs = malloc(sizeof(*refs)*refs_cap);
 
     uint32_t output[1024];
     size_t num_words = 0;
@@ -796,12 +796,12 @@ parse(buffer_t buffer)
     uint32_t curr_addr = 0;
 
     size_t i;
-    token_t tokens[10];
-    token_t tok;
+    Token tokens[10];
+    Token tok;
     size_t ti;
     int ln = 0;
     size_t pos = 0;
-    state_t state = ST_INIT;
+    State state = ST_INIT;
     size_t token_pos = 0;
     while (1) {
         ln++;
@@ -809,7 +809,7 @@ parse(buffer_t buffer)
         tokens[0].t = '\n'; // TODO: this is a hack
         while (tok = get_token(buffer, &pos, &state, &token_pos), tok.t != '\n' && tok.t != TOK_NULL) {
             assert(ti < 10);
-            memcpy(tokens+ti, &tok, sizeof(token_t));
+            memcpy(tokens+ti, &tok, sizeof(Token));
             ti++;
             //printf("%s (%s) ", token_strs[tok.t], tok.s);
         }
@@ -819,13 +819,13 @@ parse(buffer_t buffer)
         uint32_t opcode;
         if (tokens[0].t == TOK_MNEM) {
 
-            mnemonic_t mnemonic = str_idx_in_list(tokens[0].s, mnemonics, num_mnemonics);
+            Mnemonic mnemonic = str_idx_in_list(tokens[0].s, mnemonics, num_mnemonics);
 
             assert(mnemonic != MNEM_INVALID); // TODO: error handling
 
             opcode = opcodes[mnemonic];
 
-            fmt_t fmt = format_for_mnemonic(mnemonic);
+            Format fmt = format_for_mnemonic(mnemonic);
 
             uint32_t rd, rs1, rs2, imm, imm_fmt;
 
@@ -1109,7 +1109,7 @@ strip_comments(char * s)
     }
 }
 
-static buffer_t
+static Buffer
 read_file(const char * filename)
 {
     FILE * fp = fopen(filename, "r");
@@ -1122,7 +1122,7 @@ read_file(const char * filename)
         perror(filename);
         exit(EXIT_FAILURE);
     }
-    buffer_t buffer;
+    Buffer buffer;
     buffer.n = (size_t) (sb.st_size+1);
     buffer.p = malloc(sizeof(*buffer.p)*buffer.n);
     fread(buffer.p, 1, buffer.n, fp);
@@ -1143,7 +1143,7 @@ main(int argc, char * argv[])
         exit(1);
     }
 
-    buffer_t file_contents = read_file(argv[1]);
+    Buffer file_contents = read_file(argv[1]);
     strip_comments(file_contents.p);
     parse(file_contents);
     free(file_contents.p);
