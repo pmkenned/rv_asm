@@ -16,5 +16,6 @@ extern const size_t num_mnemonics;
 Buffer read_file(const char * filename);
 size_t str_idx_in_list(const char * str, const char * list[], size_t n);
 int str_in_list(const char * str, const char * list[], size_t n);
+int parse_int(const char * buff);
 
 #endif /* COMMON_H */

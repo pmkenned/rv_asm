@@ -126,23 +126,6 @@ is_mnemonic(const char * s)
     return str_in_list(s, mnemonics, num_mnemonics);
 }
 
-#if 0
-static int
-is_num(const char * s)
-{
-    if (*s == '-')
-        s++;
-    if (*s == '\0')
-        return 0;
-    while (*s != '\0') {
-        if (!isdigit(*s))
-            return 0;
-        s++;
-    }
-    return 1;
-}
-#endif
-
 static int
 is_reg(const char * s)
 {
