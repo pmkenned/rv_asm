@@ -298,6 +298,10 @@ Symbol * symbols;
 size_t num_symbols;
 size_t symbols_cap;
 
+size_t num_refs;
+size_t refs_cap;
+Ref * refs;
+
 static size_t
 lookup_symbol(const char * s)
 {
@@ -310,7 +314,7 @@ lookup_symbol(const char * s)
 }
 
 static void
-add_symbol(const char * s, uint32_t curr_addr, int ln)
+add_symbol(const char * s, uint32_t addr, int ln)
 {
     size_t idx = lookup_symbol(s);
     if (idx < num_symbols) {
@@ -318,7 +322,7 @@ add_symbol(const char * s, uint32_t curr_addr, int ln)
         exit(EXIT_FAILURE);
     }
     symbols[num_symbols].s = strdup(s);
-    symbols[num_symbols].addr = curr_addr;
+    symbols[num_symbols].addr = addr;
     symbols[num_symbols].ln = ln;
     num_symbols++;
     if (num_symbols >= symbols_cap) {
@@ -328,12 +332,36 @@ add_symbol(const char * s, uint32_t curr_addr, int ln)
 }
 
 static void
-expect_n_tokens(num_tokens, n, ln)
+add_ref(const char * s, RefType rt, uint32_t addr, int ln)
+{
+    refs[num_refs].s = strdup(s);
+    refs[num_refs].t = rt;
+    refs[num_refs].addr = addr;
+    refs[num_refs].ln = ln;
+    num_refs++;
+    if (num_refs >= refs_cap) {
+        refs_cap *= 2;
+        refs = realloc(refs, sizeof(*refs)*refs_cap);
+    }
+}
+
+static void
+expect_n_tokens(int num_tokens, int n, int ln)
 {
     if (num_tokens != n) {
         fprintf(stderr, "error: unexpected tokens on line %d\n", ln);
         exit(EXIT_FAILURE);
     }
+}
+
+static void
+set_byte(uint32_t * output, size_t addr, size_t size, uint32_t data)
+{
+    uint32_t word = output[addr/4];
+    int i = addr % 4;
+    word &= ~(0xff << i*8);
+    word |= (data & 0xff) << i*8;
+    output[addr/4] = word;
 }
 
 /* TODO: separate parsing from outputting */
@@ -345,11 +373,11 @@ parse(Buffer buffer)
     symbols_cap = 10;
     symbols = malloc(sizeof(*symbols)*symbols_cap);
 
-    size_t num_refs = 0;
-    size_t refs_cap = 10;
-    Ref * refs = malloc(sizeof(*refs)*refs_cap);
+    num_refs = 0;
+    refs_cap = 10;
+    refs = malloc(sizeof(*refs)*refs_cap);
 
-    uint32_t output[1024];
+    uint32_t output[1024]; // TODO
     size_t num_words = 0;
 
     uint32_t curr_addr = 0;
@@ -422,15 +450,7 @@ parse(Buffer buffer)
                     if ((num_tokens == 2 && tokens[1].t == TOK_IDENT) ||
                         (num_tokens == 4 && tokens[3].t == TOK_IDENT)) {
                         // TODO: handle num_tokens == 2 case
-                        refs[num_refs].s = strdup(tokens[3].s);
-                        refs[num_refs].t = REF_J;
-                        refs[num_refs].addr = curr_addr;
-                        refs[num_refs].ln = ln;
-                        num_refs++;
-                        if (num_refs >= refs_cap) {
-                            refs_cap *= 2;
-                            refs = realloc(refs, sizeof(*refs)*refs_cap);
-                        }
+                        add_ref(tokens[3].s, REF_J, curr_addr, ln);
                         imm = 0; // TODO
                     }
 
@@ -460,15 +480,7 @@ parse(Buffer buffer)
                     if (tokens[5].t == TOK_NUMBER)
                         imm = strtol(tokens[5].s, NULL, 0);
                     else {
-                        refs[num_refs].s = strdup(tokens[5].s);
-                        refs[num_refs].t = REF_B;
-                        refs[num_refs].addr = curr_addr;
-                        refs[num_refs].ln = ln;
-                        num_refs++;
-                        if (num_refs >= refs_cap) {
-                            refs_cap *= 2;
-                            refs = realloc(refs, sizeof(*refs)*refs_cap);
-                        }
+                        add_ref(tokens[5].s, REF_B, curr_addr, ln);
                         imm = 0; // TODO
                     }
                     imm_fmt = b_fmt_imm(imm);
@@ -519,91 +531,41 @@ parse(Buffer buffer)
             output[curr_addr/4] = opcode;
             //printf("%02x: 0x%08x\n", curr_addr, opcode);
             curr_addr += 4;
-            num_words = curr_addr/4;
-
         } else if (tokens[0].t == TOK_DIR) {
             if (strcmp(tokens[0].s, ".byte") == 0) {
                 //assert(is_num(tokens[1].s));
-                uint32_t word  = output[curr_addr/4];
-                if (curr_addr % 4 == 0) {
-                    word &= 0xffffff00;
-                    word |= strtol(tokens[1].s, NULL, 0) & 0xff;
-                } else if (curr_addr % 4 == 1) {
-                    word &= 0xffff00ff;
-                    word |= (strtol(tokens[1].s, NULL, 0) & 0xff) << 8;
-                } else if (curr_addr % 4 == 2) {
-                    word &= 0xff00ffff;
-                    word |= (strtol(tokens[1].s, NULL, 0) & 0xff) << 16;
-                } else if (curr_addr % 4 == 3) {
-                    word &= 0x00ffffff;
-                    word |= (strtol(tokens[1].s, NULL, 0) & 0xff) << 24;
-                }
-                output[curr_addr/4] = word;
-                curr_addr += 1;
-                num_words = curr_addr/4;
+                set_byte(output, curr_addr++, 1, strtol(tokens[1].s, NULL, 0));
                 // TODO: what if a .byte is followed by something wider?
             } else if (strcmp(tokens[0].s, ".half") == 0) {
                 //assert(is_num(tokens[1].s));
-                uint32_t word  = output[curr_addr/4];
-                if (curr_addr % 4 == 0) {
-                    word &= 0xffff0000;
-                    word |= strtol(tokens[1].s, NULL, 0) & 0xffff;
-                } else if (curr_addr % 4 == 2) {
-                    word &= 0x0000ffff;
-                    word |= (strtol(tokens[1].s, NULL, 0) & 0xffff) << 16;
-                } else {
-                    assert(0);
-                }
-                output[curr_addr/4] = word;
-                curr_addr += 2;
-                num_words = curr_addr/4;
+                int n = strtol(tokens[1].s, NULL, 0);
+                set_byte(output, curr_addr++, 1, n & 0xff);
+                set_byte(output, curr_addr++, 1, (n >> 8) & 0xff);
             } else if (strcmp(tokens[0].s, ".word") == 0) {
                 //assert(is_num(tokens[1].s));
                 assert(curr_addr % 4 == 0);
                 output[curr_addr/4] = strtol(tokens[1].s, NULL, 0);
                 curr_addr += 4;
-                num_words = curr_addr/4;
             } else if (strcmp(tokens[0].s, ".dword") == 0) {
                 //assert(is_num(tokens[1].s));
                 assert(curr_addr % 8 == 0);
-                output[curr_addr/4] = (atoll(tokens[1].s) & 0x00000000ffffffff);
+                output[curr_addr/4] = (strtoll(tokens[1].s, NULL, 0) & 0x00000000ffffffff);
                 curr_addr += 4;
-                output[curr_addr/4] = (atoll(tokens[1].s) & 0xffffffff00000000) >> 32;
+                output[curr_addr/4] = (strtoll(tokens[1].s, NULL, 0) & 0xffffffff00000000) >> 32;
                 curr_addr += 4;
-                num_words = curr_addr/4;
             } else if (strcmp(tokens[0].s, ".string") == 0) {
-                // TODO: this is buggy and shitty
                 // TODO: add terminating null char
-                const char * cp = tokens[1].s+1;
-                size_t idx = 0;
-                while (*cp != '"') {
-                    uint32_t word  = output[curr_addr/4];
-                    if (idx % 4 == 0) {
-                        word &= 0xffffff00;
-                        word |= *cp;
-                    } else if (idx % 4 == 1) {
-                        word &= 0xffff00ff;
-                        word |= (uint32_t)(*cp) << 8;
-                    } else if (idx % 4 == 2) {
-                        word &= 0xff00ffff;
-                        word |= (uint32_t)(*cp) << 16;
-                    } else if (idx % 4 == 3) {
-                        word &= 0x00ffffff;
-                        word |= (uint32_t)(*cp) << 24;
-                    }
-                    idx++;
-                    cp++;
-                    output[curr_addr/4] = word;
-                    curr_addr++;
+                for (const char * cp = tokens[1].s+1; *cp != '"'; cp++) {
+                    set_byte(output, curr_addr++, 1, *cp);
                 }
-                // TODO: loses an incomplete word because of rounding down
-                num_words = curr_addr/4;
-                //printf("num_words: %zu\n", num_words);
+                set_byte(output, curr_addr++, 1, '\0');
             } else {
                 // TODO
             }
         } else if (tokens[0].t == '\n') {
         }
+
+        num_words = (curr_addr+3)/4;
 
         if (tok.t == TOK_EOF)
             break;
