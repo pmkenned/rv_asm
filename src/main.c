@@ -8,58 +8,78 @@
 
 #define MAX_TOKENS_PER_LINE 10
 
+#define INST_LIST \
+    X(MNEM_LUI,     "lui",      FMT_REG_NUM,                0x00000037) \
+    X(MNEM_AUIPC,   "auipc",    FMT_REG_NUM,                0x00000017) \
+    X(MNEM_JAL,     "jal",      FMT_REG_OFFSET_OR_OFFSET,   0x0000006f) \
+    X(MNEM_JALR,    "jalr",     FMT_REG_NUM_REG,            0x00000067) \
+    X(MNEM_BEQ,     "beq",      FMT_REG_REG_OFFSET,         0x00000063) \
+    X(MNEM_BNE,     "bne",      FMT_REG_REG_OFFSET,         0x00001063) \
+    X(MNEM_BLT,     "blt",      FMT_REG_REG_OFFSET,         0x00004063) \
+    X(MNEM_BGE,     "bge",      FMT_REG_REG_OFFSET,         0x00005063) \
+    X(MNEM_BLTU,    "bltu",     FMT_REG_REG_OFFSET,         0x00006063) \
+    X(MNEM_BGEU,    "bgeu",     FMT_REG_REG_OFFSET,         0x00007063) \
+    X(MNEM_LB,      "lb",       FMT_REG_NUM_REG,            0x00000003) \
+    X(MNEM_LH,      "lh",       FMT_REG_NUM_REG,            0x00001003) \
+    X(MNEM_LW,      "lw",       FMT_REG_NUM_REG,            0x00002003) \
+    X(MNEM_LBU,     "lbu",      FMT_REG_NUM_REG,            0x00004003) \
+    X(MNEM_LHU,     "lhu",      FMT_REG_NUM_REG,            0x00005003) \
+    X(MNEM_SB,      "sb",       FMT_REG_NUM_REG,            0x00000023) \
+    X(MNEM_SH,      "sh",       FMT_REG_NUM_REG,            0x00001023) \
+    X(MNEM_SW,      "sw",       FMT_REG_NUM_REG,            0x00002023) \
+    X(MNEM_ADDI,    "addi",     FMT_REG_REG_NUM,            0x00000013) \
+    X(MNEM_SLTI,    "slti",     FMT_REG_REG_NUM,            0x00002013) \
+    X(MNEM_SLTIU,   "sltiu",    FMT_REG_REG_NUM,            0x00003013) \
+    X(MNEM_XORI,    "xori",     FMT_REG_REG_NUM,            0x00004013) \
+    X(MNEM_ORI,     "ori",      FMT_REG_REG_NUM,            0x00006013) \
+    X(MNEM_ANDI,    "andi",     FMT_REG_REG_NUM,            0x00007013) \
+    X(MNEM_SLLI,    "slli",     FMT_REG_REG_NUM,            0x00001013) \
+    X(MNEM_SRLI,    "srli",     FMT_REG_REG_NUM,            0x00005013) \
+    X(MNEM_SRAI,    "srai",     FMT_REG_REG_NUM,            0x40005013) \
+    X(MNEM_ADD,     "add",      FMT_REG_REG_REG,            0x00000033) \
+    X(MNEM_SUB,     "sub",      FMT_REG_REG_REG,            0x40000033) \
+    X(MNEM_SLL,     "sll",      FMT_REG_REG_REG,            0x00001033) \
+    X(MNEM_SLT,     "slt",      FMT_REG_REG_REG,            0x00002033) \
+    X(MNEM_SLTU,    "sltu",     FMT_REG_REG_REG,            0x00003033) \
+    X(MNEM_XOR,     "xor",      FMT_REG_REG_REG,            0x00004033) \
+    X(MNEM_SRL,     "srl",      FMT_REG_REG_REG,            0x00005033) \
+    X(MNEM_SRA,     "sra",      FMT_REG_REG_REG,            0x40005033) \
+    X(MNEM_OR,      "or",       FMT_REG_REG_REG,            0x00006033) \
+    X(MNEM_AND,     "and",      FMT_REG_REG_REG,            0x00007033) \
+    X(MNEM_FENCE,   "fence",    FMT_NONE_OR_IORW,           0x0000000f) \
+    X(MNEM_FENCE_I, "fence.i",  FMT_NONE,                   0x0000100f) \
+    X(MNEM_ECALL,   "ecall",    FMT_NONE,                   0x00000073) \
+    X(MNEM_EBREAK,  "ebreak",   FMT_NONE,                   0x00100073) \
+    X(MNEM_CSRRW,   "csrrw",    FMT_REG_CSR_REG,            0x00001073) \
+    X(MNEM_CSRRS,   "csrrs",    FMT_REG_CSR_REG,            0x00002073) \
+    X(MNEM_CSRRC,   "csrrc",    FMT_REG_CSR_REG,            0x00003073) \
+    X(MNEM_CSRRWI,  "csrrwi",   FMT_REG_CSR_NUM,            0x00005073) \
+    X(MNEM_CSRRSI,  "csrrsi",   FMT_REG_CSR_NUM,            0x00006073) \
+    X(MNEM_CSRRCI,  "csrrci",   FMT_REG_CSR_NUM,            0x00007073)
+
 typedef enum {
-    MNEM_LUI,
-    MNEM_AUIPC,
-    MNEM_JAL,
-    MNEM_JALR,
-    MNEM_BEQ,
-    MNEM_BNE,
-    MNEM_BLT,
-    MNEM_BGE,
-    MNEM_BLTU,
-    MNEM_BGEU,
-    MNEM_LB,
-    MNEM_LH,
-    MNEM_LW,
-    MNEM_LBU,
-    MNEM_LHU,
-    MNEM_SB,
-    MNEM_SH,
-    MNEM_SW,
-    MNEM_ADDI,
-    MNEM_SLTI,
-    MNEM_SLTIU,
-    MNEM_XORI,
-    MNEM_ORI,
-    MNEM_ANDI,
-    MNEM_SLLI,
-    MNEM_SRLI,
-    MNEM_SRAI,
-    MNEM_ADD,
-    MNEM_SUB,
-    MNEM_SLL,
-    MNEM_SLT,
-    MNEM_SLTU,
-    MNEM_XOR,
-    MNEM_SRL,
-    MNEM_SRA,
-    MNEM_OR,
-    MNEM_AND,
-    MNEM_FENCE,
-    MNEM_FENCE_I,
-    MNEM_ECALL,
-    MNEM_EBREAK,
-    MNEM_CSRRW,
-    MNEM_CSRRS,
-    MNEM_CSRRC,
-    MNEM_CSRRWI,
-    MNEM_CSRRSI,
-    MNEM_CSRRCI,
-    MNEM_INVALID,
+#define X(MNEM, STR, FMT, OPCODE) MNEM,
+    INST_LIST
+#undef X
+    MNEM_INVALID
 } Mnemonic;
 
-#if 1
+const char * mnemonics[] = {
+#define X(MNEM, STR, FMT, OPCODE) STR,
+    INST_LIST
+#undef X
+    "invalid"
+};
+
+const size_t num_mnemonics = NELEM(mnemonics);
+
+uint32_t
+opcodes[] = {
+#define X(MNEM, STR, FMT, OPCODE) OPCODE,
+    INST_LIST
+#undef X
+};
+
 // OFFSET: NUMBER or IDENT
 typedef enum {
     FMT_NONE,
@@ -79,112 +99,15 @@ static Format
 format_for_mnemonic(Mnemonic mnemonic)
 {
     switch (mnemonic) {
-        case MNEM_LUI:      return FMT_REG_NUM;                 break;
-        case MNEM_AUIPC:    return FMT_REG_NUM;                 break;
-        case MNEM_JAL:      return FMT_REG_OFFSET_OR_OFFSET;    break;
-        case MNEM_JALR:     return FMT_REG_NUM_REG;             break;
-        case MNEM_BEQ:      return FMT_REG_REG_OFFSET;          break;
-        case MNEM_BNE:      return FMT_REG_REG_OFFSET;          break;
-        case MNEM_BLT:      return FMT_REG_REG_OFFSET;          break;
-        case MNEM_BGE:      return FMT_REG_REG_OFFSET;          break;
-        case MNEM_BLTU:     return FMT_REG_REG_OFFSET;          break;
-        case MNEM_BGEU:     return FMT_REG_REG_OFFSET;          break;
-        case MNEM_LB:       return FMT_REG_NUM_REG;             break;
-        case MNEM_LH:       return FMT_REG_NUM_REG;             break;
-        case MNEM_LW:       return FMT_REG_NUM_REG;             break;
-        case MNEM_LBU:      return FMT_REG_NUM_REG;             break;
-        case MNEM_LHU:      return FMT_REG_NUM_REG;             break;
-        case MNEM_SB:       return FMT_REG_NUM_REG;             break;
-        case MNEM_SH:       return FMT_REG_NUM_REG;             break;
-        case MNEM_SW:       return FMT_REG_NUM_REG;             break;
-        case MNEM_ADDI:     return FMT_REG_REG_NUM;             break;
-        case MNEM_SLTI:     return FMT_REG_REG_NUM;             break;
-        case MNEM_SLTIU:    return FMT_REG_REG_NUM;             break;
-        case MNEM_XORI:     return FMT_REG_REG_NUM;             break;
-        case MNEM_ORI:      return FMT_REG_REG_NUM;             break;
-        case MNEM_ANDI:     return FMT_REG_REG_NUM;             break;
-        case MNEM_SLLI:     return FMT_REG_REG_NUM;             break;
-        case MNEM_SRLI:     return FMT_REG_REG_NUM;             break;
-        case MNEM_SRAI:     return FMT_REG_REG_NUM;             break;
-        case MNEM_ADD:      return FMT_REG_REG_REG;             break;
-        case MNEM_SUB:      return FMT_REG_REG_REG;             break;
-        case MNEM_SLL:      return FMT_REG_REG_REG;             break;
-        case MNEM_SLT:      return FMT_REG_REG_REG;             break;
-        case MNEM_SLTU:     return FMT_REG_REG_REG;             break;
-        case MNEM_XOR:      return FMT_REG_REG_REG;             break;
-        case MNEM_SRL:      return FMT_REG_REG_REG;             break;
-        case MNEM_SRA:      return FMT_REG_REG_REG;             break;
-        case MNEM_OR:       return FMT_REG_REG_REG;             break;
-        case MNEM_AND:      return FMT_REG_REG_REG;             break;
-        case MNEM_FENCE:    return FMT_NONE_OR_IORW;            break;
-        case MNEM_FENCE_I:  return FMT_NONE;                    break;
-        case MNEM_ECALL:    return FMT_NONE;                    break;
-        case MNEM_EBREAK:   return FMT_NONE;                    break;
-        /* TODO: confirm csr* */
-        case MNEM_CSRRW:    return FMT_REG_CSR_REG;             break;
-        case MNEM_CSRRS:    return FMT_REG_CSR_REG;             break;
-        case MNEM_CSRRC:    return FMT_REG_CSR_REG;             break;
-        case MNEM_CSRRWI:   return FMT_REG_CSR_NUM;             break;
-        case MNEM_CSRRSI:   return FMT_REG_CSR_NUM;             break;
-        case MNEM_CSRRCI:   return FMT_REG_CSR_NUM;             break;
-        case MNEM_INVALID:  assert(0);                          break;
-        default:            assert(0);                          break;
+#define X(MNEM, STR, FMT, OPCODE) case MNEM: return FMT;
+        INST_LIST
+#undef X
+        case MNEM_INVALID:
+        default: assert(0);
     }
     assert(0);
     return FMT_INVALID;
 }
-#endif
-
-uint32_t
-opcodes[] = {
-    0x00000037,
-	0x00000017,
-	0x0000006f,
-	0x00000067,
-	0x00000063,
-	0x00001063,
-	0x00004063,
-	0x00005063,
-	0x00006063,
-	0x00007063,
-	0x00000003,
-	0x00001003,
-	0x00002003,
-	0x00004003,
-	0x00005003,
-	0x00000023,
-	0x00001023,
-	0x00002023,
-	0x00000013,
-	0x00002013,
-	0x00003013,
-	0x00004013,
-	0x00006013,
-	0x00007013,
-	0x00001013,
-	0x00005013,
-	0x40005013,
-	0x00000033,
-	0x40000033,
-	0x00001033,
-	0x00002033,
-	0x00003033,
-	0x00004033,
-	0x00005033,
-	0x40005033,
-	0x00006033,
-	0x00007033,
-	0x0000000f,
-	0x0000100f,
-	0x00000073,
-	0x00100073,
-	0x00001073,
-	0x00002073,
-	0x00003073,
-	0x00005073,
-	0x00006073,
-	0x00007073
-};
 
 /* TODO: decide if this should detect invalid register names */
 static int

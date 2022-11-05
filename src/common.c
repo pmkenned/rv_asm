@@ -7,58 +7,6 @@
 #include <errno.h>
 #include <limits.h>
 
-const char * mnemonics[] = {
-    "lui",
-    "auipc",
-    "jal",
-    "jalr",
-    "beq",
-    "bne",
-    "blt",
-    "bge",
-    "bltu",
-    "bgeu",
-    "lb",
-    "lh",
-    "lw",
-    "lbu",
-    "lhu",
-    "sb",
-    "sh",
-    "sw",
-    "addi",
-    "slti",
-    "sltiu",
-    "xori",
-    "ori",
-    "andi",
-    "slli",
-    "srli",
-    "srai",
-    "add",
-    "sub",
-    "sll",
-    "slt",
-    "sltu",
-    "xor",
-    "srl",
-    "sra",
-    "or",
-    "and",
-    "fence",
-    "fence.i",
-    "ecall",
-    "ebreak",
-    "csrrw",
-    "csrrs",
-    "csrrc",
-    "csrrwi",
-    "csrrsi",
-    "csrrci"
-};
-
-const size_t num_mnemonics = NELEM(mnemonics);
-
 /* return index of element in list if present; otherwise, return n */
 size_t
 str_idx_in_list(const char * str, const char * list[], size_t n)
