@@ -7,8 +7,69 @@
 #include <stdint.h>
 
 #define MAX_TOKENS_PER_LINE 10
+#define MAX_PSEUDO_EXPAND 3
 
-#define INST_LIST \
+// TODO: make this a run-time option
+#define EXT_C 0
+
+#define PSEUDO_LIST \
+    X(PSEUDO_BEQZ,          "beqz",         FMT_REG_OFFSET      ) \
+    X(PSEUDO_BGEZ,          "bgez",         FMT_REG_OFFSET      ) \
+    X(PSEUDO_BGT,           "bgt",          FMT_REG_REG_OFFSET  ) \
+    X(PSEUDO_BGTU,          "bgtu",         FMT_REG_REG_OFFSET  ) \
+    X(PSEUDO_BGTZ,          "bgtz",         FMT_REG_OFFSET      ) \
+    X(PSEUDO_BLE,           "ble",          FMT_REG_REG_OFFSET  ) \
+    X(PSEUDO_BLEU,          "bleu",         FMT_REG_REG_OFFSET  ) \
+    X(PSEUDO_BLEZ,          "blez",         FMT_REG_OFFSET      ) \
+    X(PSEUDO_BLTZ,          "bltz",         FMT_REG_OFFSET      ) \
+    X(PSEUDO_BNEZ,          "bnez",         FMT_REG_OFFSET      ) \
+    X(PSEUDO_CALL,          "call",         FMT_REG_SYMBOL      ) \
+    X(PSEUDO_CSRR,          "csrr",         FMT_REG_CSR         ) \
+    X(PSEUDO_CSRC,          "csrc",         FMT_CSR_REG         ) \
+    X(PSEUDO_CSRCI,         "csrci",        FMT_CSR_NUM         ) \
+    X(PSEUDO_CSRS,          "csrs",         FMT_CSR_REG         ) \
+    X(PSEUDO_CSRSI,         "csrsi",        FMT_CSR_NUM         ) \
+    X(PSEUDO_CSRW,          "csrw",         FMT_CSR_REG         ) \
+    X(PSEUDO_CSRWI,         "csrwi",        FMT_CSR_NUM         ) \
+    X(PSEUDO_J,             "j",            FMT_OFFSET          ) \
+    X(PSEUDO_JR,            "jr",           FMT_REG             ) \
+    X(PSEUDO_LA,            "la",           FMT_REG_SYMBOL      ) \
+    X(PSEUDO_LI,            "li",           FMT_REG_NUM         ) \
+    X(PSEUDO_LLA,           "lla",          FMT_REG_SYMBOL      ) \
+    X(PSEUDO_MV,            "mv",           FMT_REG_REG         ) \
+    X(PSEUDO_NEG,           "neg",          FMT_REG_REG         ) \
+    X(PSEUDO_NOP,           "nop",          FMT_NONE            ) \
+    X(PSEUDO_NOT,           "not",          FMT_REG_REG         ) \
+    X(PSEUDO_RDCYCLE,       "rdcycle",      FMT_NONE            ) \
+    X(PSEUDO_RDINSTRET,     "rdinstret",    FMT_NONE            ) \
+    X(PSEUDO_RDTIME,        "rdtime",       FMT_NONE            ) \
+    X(PSEUDO_RET,           "ret",          FMT_NONE            ) \
+    X(PSEUDO_SEQZ,          "seqz",         FMT_REG_REG         ) \
+    X(PSEUDO_SGTZ,          "sgtz",         FMT_REG_REG         ) \
+    X(PSEUDO_SLTZ,          "sltz",         FMT_REG_REG         ) \
+    X(PSEUDO_SNEZ,          "snez",         FMT_REG_REG         ) \
+    X(PSEUDO_SUB,           "sub",          FMT_REG_REG_REG     ) \
+    X(PSEUDO_TAIL,          "tail",         FMT_SYMBOL          ) \
+    X(PSEUDO_RDCYCLEH,      "rdcycleh",     FMT_NONE            ) \
+    X(PSEUDO_RDINSTRETH,    "rdinstreth",   FMT_NONE            ) \
+    X(PSEUDO_RDTIMEH,       "rdtimeh",      FMT_NONE            )
+
+typedef enum {
+#define X(MNEM, STR, FMT) MNEM,
+    PSEUDO_LIST
+#undef X
+} Pseudo;
+
+const char * pseudo_mnemonics[] = {
+#define X(MNEM, STR, FMT) STR,
+    PSEUDO_LIST
+#undef X
+    "invalid"
+};
+
+const size_t num_pseudo_mnemonics = NELEM(pseudo_mnemonics);
+
+#define INST_LIST_RV32I \
     X(MNEM_LUI,     "lui",      FMT_REG_NUM,                0x00000037) \
     X(MNEM_AUIPC,   "auipc",    FMT_REG_NUM,                0x00000017) \
     X(MNEM_JAL,     "jal",      FMT_REG_OFFSET_OR_OFFSET,   0x0000006f) \
@@ -57,11 +118,57 @@
     X(MNEM_CSRRSI,  "csrrsi",   FMT_REG_CSR_NUM,            0x00006073) \
     X(MNEM_CSRRCI,  "csrrci",   FMT_REG_CSR_NUM,            0x00007073)
 
+#if EXT_C
+#define INST_LIST_C \
+    X(MNEM_C_NOP,      "c.nop",                FMT_NONE,        0x0001) \
+    X(MNEM_C_ADDI,     "c.addi",               FMT_REG_NUM,     0x0001) \
+    X(MNEM_C_JAL,      "c.jal",                FMT_OFFSET,      0x2001) \
+    X(MNEM_C_LI,       "c.li",                 FMT_REG_NUM,     0x4001) \
+    X(MNEM_C_ADDI16SP, "c.addi16sp",           FMT_NUM,         0x6101) \
+    X(MNEM_C_LUI,      "c.lui",                FMT_REG_NUM,     0x6001) \
+    X(MNEM_C_SRLI,     "c.srli",               FMT_TODO,        0x8001) \
+    X(MNEM_C_SRAI,     "c.srai",               FMT_TODO,        0x8401) \
+    X(MNEM_C_ANDI,     "c.andi",               FMT_TODO,        0x8801) \
+    X(MNEM_C_SUB,      "c.sub",                FMT_TODO,        0x8c01) \
+    X(MNEM_C_XOR,      "c.xor",                FMT_TODO,        0x8c21) \
+    X(MNEM_C_OR,       "c.or",                 FMT_TODO,        0x8c41) \
+    X(MNEM_C_AND,      "c.and",                FMT_TODO,        0x8c61) \
+    X(MNEM_C_J,        "c.j",                  FMT_TODO,        0xa001) \
+    X(MNEM_C_BEQZ,     "c.beqz",               FMT_TODO,        0xc001) \
+    X(MNEM_C_BNEZ,     "c.bnez",               FMT_TODO,        0xe001) \
+    X(MNEM_C_ILLEGAL,  "Illegal instruction",  FMT_TODO,        0x0000) \
+    X(MNEM_C_ADDI4SPN, "c.addi4spn",           FMT_TODO,        0x0000) \
+    X(MNEM_C_FLD,      "c.fld",                FMT_TODO,        0x2000) \
+    X(MNEM_C_LW,       "c.lw",                 FMT_TODO,        0x4000) \
+    X(MNEM_C_FLW,      "c.flw",                FMT_TODO,        0x6000) \
+    X(MNEM_C_FSD,      "c.fsd",                FMT_TODO,        0xa000) \
+    X(MNEM_C_SW,       "c.sw",                 FMT_TODO,        0xc000) \
+    X(MNEM_C_FSW,      "c.fsw",                FMT_TODO,        0xe000) \
+    X(MNEM_C_SLLI,     "c.slli",               FMT_TODO,        0x0002) \
+    X(MNEM_C_SLLI64,   "c.slli64",             FMT_TODO,        0x0002) \
+    X(MNEM_C_FLDSP,    "c.fldsp",              FMT_TODO,        0x2002) \
+    X(MNEM_C_LWSP,     "c.lwsp",               FMT_TODO,        0x3002) \
+    X(MNEM_C_FLWSP,    "c.flwsp",              FMT_TODO,        0x6002) \
+    X(MNEM_C_JR,       "c.jr",                 FMT_TODO,        0x8002) \
+    X(MNEM_C_MV,       "c.mv",                 FMT_TODO,        0x8002) \
+    X(MNEM_C_EBREAK,   "c.ebreak",             FMT_TODO,        0x9002) \
+    X(MNEM_C_JALR,     "c.jalr",               FMT_TODO,        0x9002) \
+    X(MNEM_C_ADD,      "c.add",                FMT_TODO,        0x9002) \
+    X(MNEM_C_FSDSP,    "c.fsdsp",              FMT_TODO,        0xa002) \
+    X(MNEM_C_SWSP,     "c.swsp",               FMT_TODO,        0xc002) \
+    X(MNEM_C_FSWSP,    "c.fswsp",              FMT_TODO,        0xe002)
+#else
+#define INST_LIST_C
+#endif
+
+#define INST_LIST \
+    INST_LIST_RV32I \
+    INST_LIST_C
+
 typedef enum {
 #define X(MNEM, STR, FMT, OPCODE) MNEM,
     INST_LIST
 #undef X
-    MNEM_INVALID
 } Mnemonic;
 
 const char * mnemonics[] = {
@@ -92,9 +199,13 @@ typedef enum {
     FMT_REG_NUM_REG,
     FMT_REG_CSR_REG,
     FMT_REG_CSR_NUM,
+    FMT_OFFSET,
+    FMT_NUM,
     FMT_INVALID
 } Format;
+#define FMT_TODO FMT_INVALID
 
+// TODO: maybe just make this an array
 static Format
 format_for_mnemonic(Mnemonic mnemonic)
 {
@@ -102,7 +213,6 @@ format_for_mnemonic(Mnemonic mnemonic)
 #define X(MNEM, STR, FMT, OPCODE) case MNEM: return FMT;
         INST_LIST
 #undef X
-        case MNEM_INVALID:
         default: assert(0);
     }
     assert(0);
@@ -204,7 +314,6 @@ typedef struct {
     int ln;
 } Symbol;
 
-// TODO
 typedef enum {
     REF_J,
     REF_B
@@ -247,10 +356,8 @@ static void
 add_symbol(const char * s, uint32_t addr, int ln)
 {
     size_t idx = lookup_symbol(s);
-    if (idx < num_symbols) {
-        fprintf(stderr, "error on line %d: symbol '%s' already defined on line %d\n", ln, s, symbols[idx].ln);
-        exit(EXIT_FAILURE);
-    }
+    if (idx < num_symbols)
+        die("error on line %d: symbol '%s' already defined on line %d\n", ln, s, symbols[idx].ln);
     symbols[num_symbols].s = strdup(s);
     symbols[num_symbols].addr = addr;
     symbols[num_symbols].ln = ln;
@@ -296,10 +403,8 @@ resolve_refs(uint32_t *  output)
         uint32_t opcode = output[word_idx];
 
         size_t j = lookup_symbol(refs[i].s);
-        if (j == num_symbols) {
-            fprintf(stderr, "error: undefined symbol %s on line %d\n", refs[i].s, refs[i].ln);
-            exit(EXIT_FAILURE);
-        }
+        if (j == num_symbols)
+            die("error: undefined symbol %s on line %d\n", refs[i].s, refs[i].ln);
         uint32_t offset = symbols[j].addr - refs[i].addr;
 
         if (refs[i].t == REF_J) {
@@ -316,14 +421,12 @@ resolve_refs(uint32_t *  output)
 static void
 expect_n_tokens(int num_tokens, int n, int ln)
 {
-    if (num_tokens != n) {
-        fprintf(stderr, "error: unexpected tokens on line %d\n", ln);
-        exit(EXIT_FAILURE);
-    }
+    if (num_tokens != n)
+        die("error: unexpected tokens on line %d\n", ln);
 }
 
 static void
-set_byte(uint32_t * output, size_t addr, uint32_t data)
+deposit_byte(uint32_t * output, size_t addr, uint32_t data)
 {
     uint32_t word = output[addr/4];
     int i = addr % 4;
@@ -332,14 +435,23 @@ set_byte(uint32_t * output, size_t addr, uint32_t data)
     output[addr/4] = word;
 }
 
+static void
+deposit(uint32_t * output, size_t addr, size_t size, uint64_t data)
+{
+    assert(size <= 8);
+    for (size_t i = 0; i < size; i++, addr++) {
+        deposit_byte(output, addr, data);
+        data >>= 8;
+    }
+}
+
 static size_t
 parse_instr(Token * tokens, size_t num_tokens, uint32_t * output, size_t curr_addr, int ln)
 {
     Mnemonic mnemonic = str_idx_in_list(tokens[0].s, mnemonics, num_mnemonics);
-    if (mnemonic == MNEM_INVALID) {
-        fprintf(stderr, "error: invalid mnemonic on line %d\n", ln);
-        exit(EXIT_FAILURE);
-    }
+    if (mnemonic == num_mnemonics)
+        die("error: invalid mnemonic '%s' on line %d\n", tokens[0].s, ln);
+    int compressed = strncmp(tokens[0].s, "c.", 2) == 0;
     uint32_t opcode = opcodes[mnemonic];
     Format fmt = format_for_mnemonic(mnemonic);
     uint32_t rd, rs1, rs2, imm, imm_fmt;
@@ -356,11 +468,11 @@ parse_instr(Token * tokens, size_t num_tokens, uint32_t * output, size_t curr_ad
         case FMT_REG_OFFSET_OR_OFFSET:
             if (num_tokens == 4) {
                 rd = reg_name_to_bits(tokens[1].s);
-                if (tokens[3].t == TOK_NUMBER)
+                if (tokens[3].t == TOK_NUM)
                     imm = parse_int(tokens[3].s);
             } else if (num_tokens == 2) {
                 rd = reg_name_to_bits("x1");
-                if (tokens[1].t == TOK_NUMBER)
+                if (tokens[1].t == TOK_NUM)
                     imm = parse_int(tokens[1].s);
             } else {
                 expect_n_tokens(num_tokens, 4, ln);
@@ -396,7 +508,7 @@ parse_instr(Token * tokens, size_t num_tokens, uint32_t * output, size_t curr_ad
             expect_n_tokens(num_tokens, 6, ln);
             rs1 = reg_name_to_bits(tokens[1].s);
             rs2 = reg_name_to_bits(tokens[3].s);
-            if (tokens[5].t == TOK_NUMBER)
+            if (tokens[5].t == TOK_NUM)
                 imm = parse_int(tokens[5].s);
             else {
                 add_ref(tokens[5].s, REF_B, curr_addr, ln);
@@ -447,10 +559,348 @@ parse_instr(Token * tokens, size_t num_tokens, uint32_t * output, size_t curr_ad
     }
 
     //assert(curr_addr/4 < NELEM(output));
-    output[curr_addr/4] = opcode;
-    //printf("%02x: 0x%08x\n", curr_addr, opcode);
-    curr_addr += 4;
+    size_t opcode_size = compressed ? 2: 4;
+    deposit(output, curr_addr, opcode_size, opcode);
+    curr_addr += opcode_size;
     return curr_addr;
+}
+
+static size_t
+parse_directive(Token * tokens, size_t num_tokens, uint32_t * output, size_t curr_addr, int ln)
+{
+    assert(tokens[0].t == TOK_DIR);
+    if (strcmp(tokens[0].s, ".byte") == 0) {
+        deposit_byte(output, curr_addr++, parse_int(tokens[1].s));
+    } else if (strcmp(tokens[0].s, ".half") == 0) {
+        int n = parse_int(tokens[1].s);
+        deposit(output, curr_addr, 2, n);
+        curr_addr += 2;
+    } else if (strcmp(tokens[0].s, ".word") == 0) {
+        deposit(output, curr_addr, 4, parse_int(tokens[1].s));
+        curr_addr += 4;
+    } else if (strcmp(tokens[0].s, ".dword") == 0) {
+        int64_t n = strtoll(tokens[1].s, NULL, 0);
+        deposit(output, curr_addr, 8, n);
+        curr_addr += 8;
+    } else if (strcmp(tokens[0].s, ".string") == 0) {
+        for (const char * cp = tokens[1].s+1; *cp != '"'; cp++) {
+            deposit_byte(output, curr_addr++, *cp);
+        }
+        deposit_byte(output, curr_addr++, '\0');
+    } else if (strcmp(tokens[0].s, ".align") == 0) {
+        // TODO
+    } else if (strcmp(tokens[0].s, ".globl") == 0) {
+        // TODO
+    } else if (strcmp(tokens[0].s, ".text") == 0) {
+        // TODO
+    } else if (strcmp(tokens[0].s, ".data") == 0) {
+        // TODO
+    } else {
+        die("unsupported directive %s on line %d\n", tokens[0].s, ln);
+    }
+    return curr_addr;
+}
+
+static size_t
+substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_expanded_tokens[], Token * tokens, size_t num_tokens, int ln)
+{
+    if (tokens[0].t != TOK_PSEUDO) {
+        for (size_t i = 0; i < num_tokens; i++)
+            expanded_tokens[0][i] = tokens[i];
+        num_expanded_tokens[0] = num_tokens;
+        return 1;
+    }
+
+    Pseudo pseudo = str_idx_in_list(tokens[0].s, pseudo_mnemonics, num_pseudo_mnemonics);
+    switch (pseudo) {
+        case PSEUDO_BEQZ:
+            // beqz rs1, offset
+            // beq  rs1, x0, offset
+            assert(0); // TODO
+        case PSEUDO_BGEZ:
+            // bgez        rs1, offset
+            // bge rs1, x0, offset
+            assert(0); // TODO
+        case PSEUDO_BGT:
+            // bgt  rs1, rs2, offset
+            // blt  rs2, rs1, offset
+            assert(0); // TODO
+        case PSEUDO_BGTU:
+            // bgtu rs1, rs2, offset
+            // bltu rs2, rs1, offset
+            assert(0); // TODO
+        case PSEUDO_BGTZ:
+            // bgtz rs2, offset
+            // blt  x0, rs2, offset
+            assert(0); // TODO
+        case PSEUDO_BLE:
+            // ble  rs1, rs2, offset
+            // bge  rs2, rs1, offset
+            assert(0); // TODO
+        case PSEUDO_BLEU:
+            // bleu  rs1, rs2, offset
+            // bgeu  rs2, rs1, offset
+            assert(0); // TODO
+        case PSEUDO_BLEZ:
+            // blez rs2, offset
+            // bge  x0, rs2, offset
+            assert(0); // TODO
+        case PSEUDO_BLTZ:
+            // bltz rs1, offset
+            // blt  rs1, x0, offset
+            assert(0); // TODO
+        case PSEUDO_BNEZ:
+            // bnez rs1, offset
+            // bne  rs1, x0, offset
+            assert(0); // TODO
+        case PSEUDO_CALL:
+            // call     rd, symbol
+            // auipc    rd, offsetHi; jalr rd, offsetLo(rd); if rd is omitted, x1
+            assert(0); // TODO
+        case PSEUDO_CSRR:
+            // csrr     rd, csr
+            // csrrs    rd, csr, x0
+            assert(0); // TODO
+        case PSEUDO_CSRC:
+            // csrc     csr, rs1
+            // csrrc    x0, csr, rs1
+            assert(0); // TODO
+        case PSEUDO_CSRCI:
+            // csrci    csr, zimm[4:0]
+            // csrrci   x0, csr, zimm
+            assert(0); // TODO
+        case PSEUDO_CSRS:
+            // csrs     csr, rs1
+            // csrrs    x0, csr, rs1
+            assert(0); // TODO
+        case PSEUDO_CSRSI:
+            // csrsi    csr, zimm[4:0]
+            // csrrsi   x0, csr, zimm
+            assert(0); // TODO
+        case PSEUDO_CSRW:
+            // csrw     csr, rs1
+            // csrrw    x0, csr, rs1
+            assert(0); // TODO
+        case PSEUDO_CSRWI:
+            // csrwi    csr, zimm[4:0]
+            // csrrwi   x0, csr, zimm
+            assert(0); // TODO
+        case PSEUDO_J:
+            // j    offset
+            // jal  x0, offset
+            assert(0); // TODO
+        case PSEUDO_JR:
+            // jr   rs1
+            // jalr x0, 0(rs1)
+            assert(0); // TODO
+        case PSEUDO_LA:
+            // la       rd, symbol
+            // RV32I: auipc rd, offsetHi; lw rd, offsetLo(rd)
+            assert(0); // TODO
+        case PSEUDO_LI:
+            // li       rd, imm
+            // RV32I: lui and/or addi
+            assert(0); // TODO
+        case PSEUDO_LLA:
+            // lla      rd, symbol
+            // auipc    rd, offsetHi; addi rd, rd, offsetLo
+            assert(0); // TODO
+        case PSEUDO_MV:
+            // mv   rd, rs1
+            // addi rd, rs1, 0
+            assert(0); // TODO
+        case PSEUDO_NEG:
+            // neg  rd, rs2
+            // sub  rd, x0, rs2
+            assert(0); // TODO
+        case PSEUDO_NOP:
+            // nop
+            // addi x0, x0, 0
+            assert(0); // TODO
+        case PSEUDO_NOT:
+            // not  rd, rs1
+            // xori rd, rs1, -1
+            expanded_tokens[0][0] = (Token) {.t=TOK_MNEM, .s="xori"};
+            expanded_tokens[0][1] = tokens[1];
+            expanded_tokens[0][2] = tokens[2];
+            expanded_tokens[0][3] = tokens[3];
+            expanded_tokens[0][4] = (Token) {.t=',', .s=","};
+            expanded_tokens[0][5] = (Token) {.t=TOK_NUM, .s="-1"};
+            num_expanded_tokens[0] = 6;
+            return 1;
+        case PSEUDO_RDCYCLE:
+            // rdcycle
+            // csrrs rd, cycle, x0
+            assert(0); // TODO
+        case PSEUDO_RDINSTRET:
+            // rdinstret
+            // csrrs rd, instret, x0
+            assert(0); // TODO
+        case PSEUDO_RDTIME:
+            // rdtime
+            // csrrs rd, time, x0
+            assert(0); // TODO
+        case PSEUDO_RET:
+            // ret
+            // jalr x0, 0(x1)
+            assert(0); // TODO
+        case PSEUDO_SEQZ:
+            // seqz     rd, rs1
+            // sltiu    rd, rs1, 1
+            assert(0); // TODO
+        case PSEUDO_SGTZ:
+            // sgtz rd, rs2
+            // slt  rd, x0, rs2
+            assert(0); // TODO
+        case PSEUDO_SLTZ:
+            // sltz rd, rs1
+            // slt  rd, rs1, x0
+            assert(0); // TODO
+        case PSEUDO_SNEZ:
+            // snez rd, rs2
+            // sltu rd, x0, rs2
+            assert(0); // TODO
+        case PSEUDO_SUB:
+            // sub      rd, rs1, rs2
+            // c.sub    rd, rs2
+            assert(0); // TODO
+        case PSEUDO_TAIL:
+            // tail     symbol
+            // auipc    x6, offsetHi; jalr x0, offsetLo(x6)
+            assert(0); // TODO
+        case PSEUDO_RDCYCLEH:
+            // rdcycleh
+            // csrrs rd, cycleh, x0
+            assert(0); // TODO
+        case PSEUDO_RDINSTRETH:
+            // rdinstreth
+            // csrrs rd, instreth, x0
+            assert(0); // TODO
+        case PSEUDO_RDTIMEH:
+            // rdtimeh
+            // csrrs rd, timeh, x0
+            assert(0); // TODO
+        default:
+            die("unsupported pseudoinstruction '%s' on line %d\n", tokens[0].s, ln);
+    }
+    return 0;
+}
+
+static size_t
+compress_if_possible(Token * tokens, size_t num_tokens)
+{
+    Mnemonic mnemonic = str_idx_in_list(tokens[0].s, mnemonics, num_mnemonics);
+    assert(mnemonic < num_mnemonics);
+    if (mnemonic == MNEM_ADD) {
+        // add      rd, rs1, rs2
+        // c.add    rd, rs2         when rd=rs1 (invalid if rd=x0 or rs2=x0)
+        // c.mv     rd, rs2         when rd=x0  (invalid if rs2=x0)
+        int rd = reg_name_to_bits(tokens[1].s);
+        int rs1 = reg_name_to_bits(tokens[3].s);
+        int rs2 = reg_name_to_bits(tokens[5].s);
+        if ((rd == rs1) && (rd != 0) && (rs2 != 0)) {
+            strcpy(tokens[0].s, "c.add");
+            tokens[3] = tokens[5];
+            num_tokens -= 2;
+        } else if (rs1 == 0 && rs2 != 0) {
+            strcpy(tokens[0].s, "c.mv");
+            tokens[3] = tokens[5];
+            num_tokens -= 2;
+        }
+    } else if (mnemonic == MNEM_ADDI) {
+        // addi        rd, rs1, imm
+        // c.li        rd, imm      when rs1=x0
+        // c.addi      rd, imm      when rd=rs1
+        // c.addi16sp  imm          when rd=rs1=x2 (invalid if imm=0)
+        // c.addi4spn  rd-8, uimm   when rs1=x2    (invalid if uimm=0)
+        int rd = reg_name_to_bits(tokens[1].s);
+        int rs1 = reg_name_to_bits(tokens[3].s);
+        int imm = parse_int(tokens[5].s);
+        if (rs1 == 0) {
+            strcpy(tokens[0].s, "c.li");
+            tokens[3] = tokens[5];
+            num_tokens -= 2;
+        } else if (rd == rs1) {
+            strcpy(tokens[0].s, "c.addi");
+            tokens[3] = tokens[5];
+            num_tokens -= 2;
+        } else if ((rd == 2) && (rs1 == 2) && (imm != 0)) {
+            strcpy(tokens[0].s, "c.addi16sp");
+            tokens[1] = tokens[5];
+            num_tokens -= 4;
+        } else if ((rs1 == 2) && (imm != 0) && (rd >= 8)) {
+            strcpy(tokens[0].s, "c.addi4spn");
+            sprintf(tokens[1].s, "x%d", rd-8);
+            tokens[3] = tokens[5];
+            num_tokens -= 2;
+        }
+    } else if (mnemonic == MNEM_AND) {
+        // and      rd, rs1, rs2
+        // c.and    rd, rs2
+        // TODO
+    } else if (mnemonic == MNEM_ANDI) {
+        // andi     rd, rs1, imm
+        // c.andi   rd, imm
+        // TODO
+    } else if (mnemonic == MNEM_BEQ) {
+        // beq      rs1, rs2, offset
+        // c.beq    rs1, offset
+        // TODO
+    } else if (mnemonic == MNEM_JAL) {
+        // jal      rd, offset          ; if rd is omitted, x1
+        // c.j      offset
+        // c.jal    offset
+        // TODO
+    } else if (mnemonic == MNEM_JALR) {
+        // jalr     rd, offset(rs1)     ; if rd is omitted, x1
+        // c.jr     rs1
+        // c.jalr   rs1
+        // TODO
+    } else if (mnemonic == MNEM_LUI) {
+        // lui      rd, imm
+        // c.lui    rd, imm
+        // TODO
+    } else if (mnemonic == MNEM_SW) {
+        // sw       rs2, offset(rs1)
+        // c.swsp   rs2, offset
+        // c.sw     rs2, offset(rs1)
+        // TODO
+    } else if (mnemonic == MNEM_SLLI) {
+        // slli     rd, rs1, shamt
+        // c.slli   rd, shamt
+        // TODO
+    } else if (mnemonic == MNEM_SRAI) {
+        // srai     rd, rs1, shamt
+        // c.srai   rd, shamt
+        // TODO
+    } else if (mnemonic == MNEM_SRLI) {
+        // srli     rd, rs1, shamt
+        // c.srli   rd, shamt
+        // TODO
+    } else if (mnemonic == MNEM_XOR) {
+        // xor      rd, rs1, rs2
+        // c.xor    rd, rs2
+        // TODO
+    }
+    return num_tokens;
+}
+
+static size_t
+get_line_of_tokens(TokenizerState * ts, Token * tokens)
+{
+    size_t num_tokens = 0;
+    TokenType tt = TOK_NONE;
+    while (tt != '\n') {
+        if (num_tokens >= MAX_TOKENS_PER_LINE)
+            die("error: too many tokens on line %d\n", ts->ln);
+        tt = (tokens[num_tokens++] = get_token(ts)).t;
+        if (tt == TOK_EOF) {
+            ts->eof = 1;
+            break;
+        }
+    }
+    num_tokens--; // drop newline token
+    return num_tokens;
 }
 
 /* TODO: separate parsing from outputting */
@@ -467,80 +917,46 @@ parse(Buffer buffer)
     refs = malloc(sizeof(*refs)*refs_cap);
 
     uint32_t output[1024]; // TODO: make this dynamic
-    size_t num_words = 0;
     uint32_t curr_addr = 0;
     Token tokens[MAX_TOKENS_PER_LINE];
-    int ln = 0;
+    Token expanded_tokens[MAX_PSEUDO_EXPAND][MAX_TOKENS_PER_LINE];
+    size_t num_expanded_tokens[MAX_PSEUDO_EXPAND];
     TokenizerState ts = init_tokenizer(buffer);
-    while (1) {
-        ln++;
-        Token tok;
-        tokens[0].t = '\n'; // TODO: this is a hack
-        size_t num_tokens = 0;
-        while (1) {
-            tok = get_token(&ts);
-            if (tok.t == '\n' || tok.t == TOK_EOF)
-                break;
-            if (num_tokens >= MAX_TOKENS_PER_LINE) {
-                fprintf(stderr, "error: too many tokens on line %d\n", ln);
-                exit(EXIT_FAILURE);
-            }
-            memcpy(&tokens[num_tokens], &tok, sizeof(Token));
-            num_tokens++;
-        }
+    while (!ts.eof) {
+        size_t num_tokens = get_line_of_tokens(&ts, tokens);
+        if (num_tokens == 0)
+            continue;
 
         // labels
-        if (tokens[0].t == TOK_IDENT) {
-            if (num_tokens < 2 || tokens[1].t != ':') {
-                fprintf(stderr, "parse error on line %d\n", ln);
-                exit(EXIT_FAILURE);
-            }
-            add_symbol(tokens[0].s, curr_addr, ln);
-            memmove(tokens, &tokens[2], sizeof(tokens[0])*(num_tokens-2));
+        Token * tokens_no_label = tokens;
+        if (num_tokens >= 2 && tokens[1].t == ':') {
+            add_symbol(tokens[0].s, curr_addr, ts.ln);
+            tokens_no_label = &tokens[2];
             num_tokens -= 2;
         }
+        if (num_tokens == 0)
+            continue;
 
-        if (tokens[0].t == TOK_MNEM) {
-            curr_addr = parse_instr(tokens, num_tokens, output, curr_addr, ln);
-        } else if (tokens[0].t == TOK_DIR) {
-            if (strcmp(tokens[0].s, ".byte") == 0) {
-                set_byte(output, curr_addr++, parse_int(tokens[1].s));
-                // TODO: what if a .byte is followed by something wider?
-            } else if (strcmp(tokens[0].s, ".half") == 0) {
-                int n = parse_int(tokens[1].s);
-                set_byte(output, curr_addr++, n & 0xff);
-                set_byte(output, curr_addr++, (n >> 8) & 0xff);
-            } else if (strcmp(tokens[0].s, ".word") == 0) {
-                assert(curr_addr % 4 == 0);
-                output[curr_addr/4] = parse_int(tokens[1].s);
-                curr_addr += 4;
-            } else if (strcmp(tokens[0].s, ".dword") == 0) {
-                assert(curr_addr % 8 == 0);
-                int64_t n = strtoll(tokens[1].s, NULL, 0);
-                output[curr_addr/4] = n & 0xffffffff;
-                curr_addr += 4;
-                output[curr_addr/4] = (n >> 32) & 0xffffffff;
-                curr_addr += 4;
-            } else if (strcmp(tokens[0].s, ".string") == 0) {
-                for (const char * cp = tokens[1].s+1; *cp != '"'; cp++) {
-                    set_byte(output, curr_addr++, *cp);
-                }
-                set_byte(output, curr_addr++, '\0');
+        size_t num_pseudo_expansions = substitute_pseudoinstr(expanded_tokens, num_expanded_tokens, tokens_no_label, num_tokens, ts.ln);
+
+        for (size_t r = 0; r < num_pseudo_expansions; r++) {
+            if (expanded_tokens[r][0].t == TOK_MNEM) {
+                // TODO: only if .option rvc
+#if EXT_C
+                num_expanded_tokens[r] = compress_if_possible(expanded_tokens[r], num_expanded_tokens[r]);
+#endif
+                curr_addr = parse_instr(expanded_tokens[r], num_expanded_tokens[r], output, curr_addr, ts.ln);
+            } else if (expanded_tokens[r][0].t == TOK_DIR) {
+                curr_addr = parse_directive(expanded_tokens[r], num_expanded_tokens[r], output, curr_addr, ts.ln);
             } else {
-                // TODO
+                assert(0);
             }
-        } else if (tokens[0].t == '\n') {
         }
-
-        num_words = (curr_addr+3)/4;
-
-        if (tok.t == TOK_EOF)
-            break;
     }
 
     resolve_refs(output);
 
-    for (size_t i = 0; i < num_words; i++) {
+    for (size_t i = 0; i < (curr_addr+3)/4; i++) {
         printf("%08x\n", output[i]);
         //printf("%02lx: 0x%08x\n", i*4, output[i]);
     }
@@ -559,7 +975,6 @@ static void
 strip_comments(char * s)
 {
     /* replace comments with ' ' */
-    /* TODO: use memmove to actually remove the comments instead of replacing with whitespace */
     size_t i;
     size_t l = strlen(s);
     int comment_flag = 0;

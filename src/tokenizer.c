@@ -16,9 +16,10 @@ const char * token_strs[] = {
     ['\n'] = "\\n",
     [TOK_DIR] = "DIR",
     [TOK_MNEM] = "MNEM",
+    [TOK_PSEUDO] = "PSEUDO",
     [TOK_REG] = "REG",
     [TOK_CSR] = "CSR",
-    [TOK_NUMBER] = "NUMBER",
+    [TOK_NUM] = "NUM",
     [TOK_IDENT] = "IDENT",
     [TOK_STRING] = "STRING",
     [TOK_EOF] = "EOF",
@@ -111,7 +112,8 @@ init_tokenizer(Buffer buffer)
     TokenizerState ts = {
         .buffer = buffer,
         .state = ST_INIT,
-        .ln = 1,
+        .ln = 0,
+        .eof = 0,
         .buf_pos = 0,
         .emit_tok = 0,
         .tok_begin = 0,
@@ -124,6 +126,12 @@ static int
 is_mnemonic(const char * s)
 {
     return str_in_list(s, mnemonics, num_mnemonics);
+}
+
+static int
+is_pseudo(const char * s)
+{
+    return str_in_list(s, pseudo_mnemonics, num_pseudo_mnemonics);
 }
 
 static int
@@ -194,8 +202,7 @@ next_char(TokenizerState * ts)
 
     /* TODO: maybe emit the current token? */
     if (c == '\0') {
-        fprintf(stderr, "error: nul byte on line %d\n", ts->ln);
-        exit(EXIT_FAILURE);
+        die("error: nul byte on line %d\n", ts->ln+1);
     }
 
     switch (ts->state) {
@@ -215,7 +222,7 @@ next_char(TokenizerState * ts)
                 next_state = ST_OCT;
             }
             if (next_state != ST_HEX && next_state != ST_OCT)
-                tok_typ = TOK_NUMBER;
+                tok_typ = TOK_NUM;
             break;
         case ST_DEC:
             if (isdigit(c)) {
@@ -237,7 +244,7 @@ next_char(TokenizerState * ts)
                 assert(0);
             }
             if (next_state != ST_DEC)
-                tok_typ = TOK_NUMBER;
+                tok_typ = TOK_NUM;
             break;
         case ST_OCT:
             next_state = common_next_state(c);
@@ -245,7 +252,7 @@ next_char(TokenizerState * ts)
                 next_state = ST_OCT;
             }
             if (next_state != ST_OCT)
-                tok_typ = TOK_NUMBER;
+                tok_typ = TOK_NUM;
             break;
         case ST_HEX:
             next_state = common_next_state(c);
@@ -254,10 +261,10 @@ next_char(TokenizerState * ts)
                 next_state = ST_HEX;
             }
             if (next_state != ST_HEX)
-                tok_typ = TOK_NUMBER;
+                tok_typ = TOK_NUM;
             break;
         case ST_ALPHA:
-            if (isalnum(c) || c == '_') {
+            if (isalnum(c) || c == '_' || c == '.') {
                 next_state = ST_ALPHA;
             } else if (isblank(c)) {
                 next_state = ST_INIT;
@@ -271,8 +278,6 @@ next_char(TokenizerState * ts)
                 next_state = ST_COMMA;
             } else if (c == ':') {
                 next_state = ST_COLON;
-            } else if (c == '.') {
-                next_state = ST_INIT;
             } else {
                 next_state = ST_ERR;
                 //assert(0);
@@ -288,6 +293,8 @@ next_char(TokenizerState * ts)
                     tok_typ = TOK_CSR;
                 else if (is_mnemonic(curr_token))
                     tok_typ = TOK_MNEM;
+                else if (is_pseudo(curr_token))
+                    tok_typ = TOK_PSEUDO;
                 else
                     tok_typ = TOK_IDENT;
                 ts->buffer.p[ts->buf_pos] = t;

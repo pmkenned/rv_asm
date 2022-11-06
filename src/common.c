@@ -6,6 +6,17 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdarg.h>
+
+void
+die(const char * fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+	va_end(ap);
+    exit(EXIT_FAILURE);
+}
 
 /* return index of element in list if present; otherwise, return n */
 size_t

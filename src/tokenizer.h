@@ -6,9 +6,10 @@ typedef enum {
     TOK_NONE,
     TOK_DIR=128,
     TOK_MNEM,
+    TOK_PSEUDO,
     TOK_REG,
     TOK_CSR, // TODO
-    TOK_NUMBER,
+    TOK_NUM,
     TOK_IDENT,
     TOK_STRING, // TODO
     TOK_EOF,
@@ -39,6 +40,7 @@ typedef struct {
     Buffer buffer;
     State state;
     int ln;
+    int eof;
     size_t buf_pos;
     int emit_tok;
     size_t tok_begin;
