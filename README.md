@@ -88,6 +88,7 @@ csrw        csr, rs1            [pseudo]
 csrwi       csr, zimm[4:0]      [pseudo]
     csrrwi x0, csr, zimm
 ebreak
+    c.ebreak
 ecall
 fence       pred, succ          ; if args are omitted, iorw, iorw
 fence.i
@@ -347,11 +348,16 @@ c.addi16sp  imm
     addi x2, x2, imm            ; invalid when imm=0
 c.addi4spn  rd', imm
     addi rd, x2, uimm where rd=8+rd'; invalid when imm=0
-c.and
-c.andi
-c.beqz
-c.bnez
+c.and rd', rs2'
+    and rd, rd, rs2 where rd=8+rd' and rs2=8+rs2'
+c.andi rd', imm
+    andi rd, rd, imm where rd=8+rd'
+c.beqz rs1', offset
+    beq rs1, x0, offset where rs1=8+rs1'
+c.bnez rs1', offset
+    bne rs1, x0, offset where rs1=8+rs1'
 c.ebreak
+    ebreak
 c.j
 c.jalr
 c.jr
@@ -384,6 +390,7 @@ c.ld
 c.ldsp
 c.sd
 c.sdsp
+c.slli64
 c.subw
 ```
 

@@ -119,7 +119,7 @@ const size_t num_pseudo_mnemonics = NELEM(pseudo_mnemonics);
     X(MNEM_CSRRCI,  "csrrci",   FMT_REG_CSR_NUM,            0x00007073)
 
 #if EXT_C
-#define INST_LIST_C \
+#define INST_LIST_RV32C \
     X(MNEM_C_NOP,      "c.nop",                FMT_NONE,        0x0001) \
     X(MNEM_C_ADDI,     "c.addi",               FMT_REG_NUM,     0x0001) \
     X(MNEM_C_JAL,      "c.jal",                FMT_OFFSET,      0x2001) \
@@ -145,25 +145,24 @@ const size_t num_pseudo_mnemonics = NELEM(pseudo_mnemonics);
     X(MNEM_C_SW,       "c.sw",                 FMT_TODO,        0xc000) \
     X(MNEM_C_FSW,      "c.fsw",                FMT_TODO,        0xe000) \
     X(MNEM_C_SLLI,     "c.slli",               FMT_TODO,        0x0002) \
-    X(MNEM_C_SLLI64,   "c.slli64",             FMT_TODO,        0x0002) \
     X(MNEM_C_FLDSP,    "c.fldsp",              FMT_TODO,        0x2002) \
     X(MNEM_C_LWSP,     "c.lwsp",               FMT_TODO,        0x3002) \
     X(MNEM_C_FLWSP,    "c.flwsp",              FMT_TODO,        0x6002) \
     X(MNEM_C_JR,       "c.jr",                 FMT_TODO,        0x8002) \
     X(MNEM_C_MV,       "c.mv",                 FMT_TODO,        0x8002) \
-    X(MNEM_C_EBREAK,   "c.ebreak",             FMT_TODO,        0x9002) \
+    X(MNEM_C_EBREAK,   "c.ebreak",             FMT_NONE,        0x9002) \
     X(MNEM_C_JALR,     "c.jalr",               FMT_TODO,        0x9002) \
     X(MNEM_C_ADD,      "c.add",                FMT_TODO,        0x9002) \
     X(MNEM_C_FSDSP,    "c.fsdsp",              FMT_TODO,        0xa002) \
     X(MNEM_C_SWSP,     "c.swsp",               FMT_TODO,        0xc002) \
     X(MNEM_C_FSWSP,    "c.fswsp",              FMT_TODO,        0xe002)
 #else
-#define INST_LIST_C
+#define INST_LIST_RV32C
 #endif
 
 #define INST_LIST \
     INST_LIST_RV32I \
-    INST_LIST_C
+    INST_LIST_RV32C
 
 typedef enum {
 #define X(MNEM, STR, FMT, OPCODE) MNEM,
@@ -306,6 +305,14 @@ j_fmt_imm(uint32_t imm)
     imm_fmt |= ((imm >> 11) & 1) << 8;
     imm_fmt |= ((imm >> 12) & 0xff);
     return imm_fmt << 12;
+}
+
+ci_fmt_imm(uint32_t imm)
+{
+    uint32_t imm_fmt = 0;
+    imm_fmt |= ((imm >> 5) & 1) << 12;
+    imm_fmt |= ((imm >> 0) & 0x1f) << 2;
+    return imm_fmt;
 }
 
 typedef struct {
@@ -493,7 +500,8 @@ parse_instr(Token * tokens, size_t num_tokens, uint32_t * output, size_t curr_ad
             expect_n_tokens(num_tokens, 4, ln);
             rd  = reg_name_to_bits(tokens[1].s);
             imm = parse_int(tokens[3].s);
-            opcode |= u_fmt_imm(imm) | (rd << 7);
+            imm_fmt = compressed ? ci_fmt_imm(imm) : u_fmt_imm(imm);
+            opcode |= imm_fmt | (rd << 7);
             break;
 
         case FMT_REG_REG_REG:
@@ -561,6 +569,7 @@ parse_instr(Token * tokens, size_t num_tokens, uint32_t * output, size_t curr_ad
     //assert(curr_addr/4 < NELEM(output));
     size_t opcode_size = compressed ? 2: 4;
     deposit(output, curr_addr, opcode_size, opcode);
+    printf("deposit %08x (%zu) %s\n", opcode, opcode_size, mnemonics[mnemonic]);
     curr_addr += opcode_size;
     return curr_addr;
 }
@@ -816,7 +825,8 @@ compress_if_possible(Token * tokens, size_t num_tokens)
         int rd = reg_name_to_bits(tokens[1].s);
         int rs1 = reg_name_to_bits(tokens[3].s);
         int imm = parse_int(tokens[5].s);
-        if (rs1 == 0) {
+        // TODO: enforce bounds on imm
+        if ((rs1 == 0) && (imm < 64)) {
             strcpy(tokens[0].s, "c.li");
             tokens[3] = tokens[5];
             num_tokens -= 2;
@@ -836,8 +846,13 @@ compress_if_possible(Token * tokens, size_t num_tokens)
         }
     } else if (mnemonic == MNEM_AND) {
         // and      rd, rs1, rs2
-        // c.and    rd, rs2
-        // TODO
+        // c.and    rd, rs2         when rd=rs1
+        int rd = reg_name_to_bits(tokens[1].s);
+        int rs1 = reg_name_to_bits(tokens[3].s);
+        if (rd == rs1) {
+            tokens[3] = tokens[5];
+            num_tokens -= 2;
+        }
     } else if (mnemonic == MNEM_ANDI) {
         // andi     rd, rs1, imm
         // c.andi   rd, imm
@@ -846,6 +861,9 @@ compress_if_possible(Token * tokens, size_t num_tokens)
         // beq      rs1, rs2, offset
         // c.beq    rs1, offset
         // TODO
+    } else if (mnemonic == MNEM_EBREAK) {
+        // c.ebreak
+        strcpy(tokens[0].s, "c.ebreak");
     } else if (mnemonic == MNEM_JAL) {
         // jal      rd, offset          ; if rd is omitted, x1
         // c.j      offset
