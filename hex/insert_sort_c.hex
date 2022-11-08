@@ -1,23 +1,43 @@
-4595
-05c00513
-006000ef
-9002
-00450693
-4705
+4595         li      a1,5
+05c00513     li      a0,92
+006000ef*    jal     ra,e <insert_sort>
+9002         ebreak
+00450693     addi    a3,a0,4
+4705         li      a4,1
+00b76463     bltu    a4,a1,1c <continue>
+00008067     ret
+0006a803     lw      a6,0(a3)
+8636         mv      a2,a3
+87ba         mv      a5,a4
+ffc62883     lw      a7,-4(a2)
+01185763*    bge     a6,a7,36 <exit_inner>
+01162023     sw      a7,0(a2)
+17fd         addi    a5,a5,-1
+1671         addi    a2,a2,-4
+fbe5*        bnez    a5,24 <inner_loop>
+078a*        slli    a5,a5,0x2
+97aa*        add     a5,a5,a0
+0107a023     sw      a6,0(a5)
+0705         addi    a4,a4,1
+0691         addi    a3,a3,4
+fd3ff06f*    j       14 <outer_loop>
+
+05134595
+00ef05c0*
+0060*
+06939002
+47050045
 00b76463
 00008067
 0006a803
-8636
-87ba
+87ba8636
 ffc62883
-01185763
+01185763*
 01162023
-17fd
-1671
-fbe5
-078a
-97aa
+167117fd
+fbe5*
+078a*
+97aa*
 0107a023
-0705
-0691
-fd3ff06f
+06910705
+fd3ff06f*

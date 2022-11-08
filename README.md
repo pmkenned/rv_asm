@@ -22,6 +22,7 @@ RISC-V Assembler
 - string literals
 - %hi, %lo?
 - lists for .byte, .half, etc.
+- handle upper and lower case
 
 ### RV32I and RV64I:
 ```
@@ -39,7 +40,7 @@ andi        rd, rs1, imm
     c.andi      rd, imm
 auipc       rd, imm
 beq         rs1, rs2, offset
-    c.beq       rs1, offset
+    c.beqz      rs1, offset
 beqz        rs1, offset         [pseudo]
     beq rs1, x0, offset
 bge         rs1, rs2, offset

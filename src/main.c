@@ -126,36 +126,35 @@ const size_t num_pseudo_mnemonics = NELEM(pseudo_mnemonics);
     X(MNEM_C_LI,       "c.li",                 FMT_REG_NUM,     0x4001) \
     X(MNEM_C_ADDI16SP, "c.addi16sp",           FMT_NUM,         0x6101) \
     X(MNEM_C_LUI,      "c.lui",                FMT_REG_NUM,     0x6001) \
-    X(MNEM_C_SRLI,     "c.srli",               FMT_TODO,        0x8001) \
-    X(MNEM_C_SRAI,     "c.srai",               FMT_TODO,        0x8401) \
-    X(MNEM_C_ANDI,     "c.andi",               FMT_TODO,        0x8801) \
-    X(MNEM_C_SUB,      "c.sub",                FMT_TODO,        0x8c01) \
-    X(MNEM_C_XOR,      "c.xor",                FMT_TODO,        0x8c21) \
-    X(MNEM_C_OR,       "c.or",                 FMT_TODO,        0x8c41) \
-    X(MNEM_C_AND,      "c.and",                FMT_TODO,        0x8c61) \
-    X(MNEM_C_J,        "c.j",                  FMT_TODO,        0xa001) \
-    X(MNEM_C_BEQZ,     "c.beqz",               FMT_TODO,        0xc001) \
-    X(MNEM_C_BNEZ,     "c.bnez",               FMT_TODO,        0xe001) \
-    X(MNEM_C_ILLEGAL,  "Illegal instruction",  FMT_TODO,        0x0000) \
-    X(MNEM_C_ADDI4SPN, "c.addi4spn",           FMT_TODO,        0x0000) \
-    X(MNEM_C_FLD,      "c.fld",                FMT_TODO,        0x2000) \
-    X(MNEM_C_LW,       "c.lw",                 FMT_TODO,        0x4000) \
-    X(MNEM_C_FLW,      "c.flw",                FMT_TODO,        0x6000) \
-    X(MNEM_C_FSD,      "c.fsd",                FMT_TODO,        0xa000) \
-    X(MNEM_C_SW,       "c.sw",                 FMT_TODO,        0xc000) \
-    X(MNEM_C_FSW,      "c.fsw",                FMT_TODO,        0xe000) \
-    X(MNEM_C_SLLI,     "c.slli",               FMT_TODO,        0x0002) \
-    X(MNEM_C_FLDSP,    "c.fldsp",              FMT_TODO,        0x2002) \
-    X(MNEM_C_LWSP,     "c.lwsp",               FMT_TODO,        0x3002) \
-    X(MNEM_C_FLWSP,    "c.flwsp",              FMT_TODO,        0x6002) \
-    X(MNEM_C_JR,       "c.jr",                 FMT_TODO,        0x8002) \
-    X(MNEM_C_MV,       "c.mv",                 FMT_TODO,        0x8002) \
+    X(MNEM_C_SRLI,     "c.srli",               FMT_REG_NUM,     0x8001) \
+    X(MNEM_C_SRAI,     "c.srai",               FMT_REG_NUM,     0x8401) \
+    X(MNEM_C_ANDI,     "c.andi",               FMT_REG_NUM,     0x8801) \
+    X(MNEM_C_SUB,      "c.sub",                FMT_REG_NUM,     0x8c01) \
+    X(MNEM_C_XOR,      "c.xor",                FMT_REG_NUM,     0x8c21) \
+    X(MNEM_C_OR,       "c.or",                 FMT_REG_REG,     0x8c41) \
+    X(MNEM_C_AND,      "c.and",                FMT_REG_REG,     0x8c61) \
+    X(MNEM_C_J,        "c.j",                  FMT_OFFSET,      0xa001) \
+    X(MNEM_C_BEQZ,     "c.beqz",               FMT_REG_NUM,     0xc001) \
+    X(MNEM_C_BNEZ,     "c.bnez",               FMT_REG_NUM,     0xe001) \
+    X(MNEM_C_ADDI4SPN, "c.addi4spn",           FMT_REG_NUM,     0x0000) \
+    X(MNEM_C_FLD,      "c.fld",                FMT_REG_REG_NUM, 0x2000) \
+    X(MNEM_C_LW,       "c.lw",                 FMT_REG_REG_NUM, 0x4000) \
+    X(MNEM_C_FLW,      "c.flw",                FMT_REG_REG_NUM, 0x6000) \
+    X(MNEM_C_FSD,      "c.fsd",                FMT_REG_REG_NUM, 0xa000) \
+    X(MNEM_C_SW,       "c.sw",                 FMT_REG_REG_NUM, 0xc000) \
+    X(MNEM_C_FSW,      "c.fsw",                FMT_REG_REG_NUM, 0xe000) \
+    X(MNEM_C_SLLI,     "c.slli",               FMT_REG_NUM,     0x0002) \
+    X(MNEM_C_FLDSP,    "c.fldsp",              FMT_REG_NUM,     0x2002) \
+    X(MNEM_C_LWSP,     "c.lwsp",               FMT_REG_NUM,     0x3002) \
+    X(MNEM_C_FLWSP,    "c.flwsp",              FMT_REG_NUM,     0x6002) \
+    X(MNEM_C_JR,       "c.jr",                 FMT_REG,         0x8002) \
+    X(MNEM_C_MV,       "c.mv",                 FMT_REG_REG,     0x8002) \
     X(MNEM_C_EBREAK,   "c.ebreak",             FMT_NONE,        0x9002) \
-    X(MNEM_C_JALR,     "c.jalr",               FMT_TODO,        0x9002) \
-    X(MNEM_C_ADD,      "c.add",                FMT_TODO,        0x9002) \
-    X(MNEM_C_FSDSP,    "c.fsdsp",              FMT_TODO,        0xa002) \
-    X(MNEM_C_SWSP,     "c.swsp",               FMT_TODO,        0xc002) \
-    X(MNEM_C_FSWSP,    "c.fswsp",              FMT_TODO,        0xe002)
+    X(MNEM_C_JALR,     "c.jalr",               FMT_REG,         0x9002) \
+    X(MNEM_C_ADD,      "c.add",                FMT_REG_REG,     0x9002) \
+    X(MNEM_C_FSDSP,    "c.fsdsp",              FMT_REG_NUM,     0xa002) \
+    X(MNEM_C_SWSP,     "c.swsp",               FMT_REG_NUM,     0xc002) \
+    X(MNEM_C_FSWSP,    "c.fswsp",              FMT_REG_NUM,     0xe002)
 #else
 #define INST_LIST_RV32C
 #endif
@@ -198,6 +197,8 @@ typedef enum {
     FMT_REG_NUM_REG,
     FMT_REG_CSR_REG,
     FMT_REG_CSR_NUM,
+    FMT_REG,
+    FMT_REG_REG,
     FMT_OFFSET,
     FMT_NUM,
     FMT_INVALID
@@ -315,6 +316,21 @@ ci_fmt_imm(uint32_t imm)
     return imm_fmt;
 }
 
+cj_fmt_imm(uint32_t imm)
+{
+    uint32_t imm_fmt = 0;
+    imm_fmt |= ((imm >> 11) & 1) << 12;
+    imm_fmt |= ((imm >> 4) & 1) << 11;
+    imm_fmt |= ((imm >> 8) & 3) << 9;
+    imm_fmt |= ((imm >> 10) & 1) << 8;
+    imm_fmt |= ((imm >> 6) & 1) << 7;
+    imm_fmt |= ((imm >> 7) & 1) << 6;
+    imm_fmt |= ((imm >> 1) & 7) << 3;
+    imm_fmt |= ((imm >> 5) & 1) << 2;
+    //printf("cj: %d -> %d\n", imm, imm_fmt);
+    return imm_fmt;
+}
+
 typedef struct {
     char * s;
     uint32_t addr;
@@ -323,7 +339,8 @@ typedef struct {
 
 typedef enum {
     REF_J,
-    REF_B
+    REF_B,
+    REF_CJ
 } RefType;
 
 typedef struct {
@@ -418,6 +435,11 @@ resolve_refs(uint32_t *  output)
             opcode |= j_fmt_imm(offset);
         } else if (refs[i].t == REF_B) {
             opcode |= b_fmt_imm(offset);
+        } else if (refs[i].t == REF_CJ) {
+            uint32_t imm_fmt = cj_fmt_imm(offset);
+            if (refs[i].addr % 4 == 2)
+                imm_fmt <<= 16;
+            opcode |= imm_fmt;
         } else {
             assert(0);
         }
@@ -497,6 +519,7 @@ parse_instr(Token * tokens, size_t num_tokens, uint32_t * output, size_t curr_ad
             break;
 
         case FMT_REG_NUM:
+            // TODO: confirm rd is correct for compressed
             expect_n_tokens(num_tokens, 4, ln);
             rd  = reg_name_to_bits(tokens[1].s);
             imm = parse_int(tokens[3].s);
@@ -527,6 +550,7 @@ parse_instr(Token * tokens, size_t num_tokens, uint32_t * output, size_t curr_ad
             break;
 
         case FMT_REG_REG_NUM:
+            // TODO: compressed
             expect_n_tokens(num_tokens, 6, ln);
             rd = reg_name_to_bits(tokens[1].s);
             rs1 = reg_name_to_bits(tokens[3].s);
@@ -557,8 +581,30 @@ parse_instr(Token * tokens, size_t num_tokens, uint32_t * output, size_t curr_ad
             /* TODO */
             break;
 
-        case FMT_INVALID:
-            assert(0);
+        case FMT_OFFSET:
+            // TODO
+            if (tokens[1].t == TOK_NUM)
+                imm = parse_int(tokens[1].s);
+            else {
+                add_ref(tokens[1].s, REF_CJ, curr_addr, ln);
+                imm = 0;
+            }
+            if (compressed) {
+                opcode |= cj_fmt_imm(imm);
+            } else {
+                assert(0);
+            }
+            break;
+
+        case FMT_REG_REG:
+            if (compressed) {
+                // TODO: make sure rd and rs2 are correct
+                rd = reg_name_to_bits(tokens[1].s);
+                rs2 = reg_name_to_bits(tokens[3].s);
+                opcode |= (rd << 7) | (rs2 << 2);
+            } else {
+                assert(0);
+            }
             break;
 
         default:
@@ -569,7 +615,7 @@ parse_instr(Token * tokens, size_t num_tokens, uint32_t * output, size_t curr_ad
     //assert(curr_addr/4 < NELEM(output));
     size_t opcode_size = compressed ? 2: 4;
     deposit(output, curr_addr, opcode_size, opcode);
-    printf("deposit %08x (%zu) %s\n", opcode, opcode_size, mnemonics[mnemonic]);
+    //printf("deposit %08x (%zu) %s\n", opcode, opcode_size, mnemonics[mnemonic]);
     curr_addr += opcode_size;
     return curr_addr;
 }
@@ -822,15 +868,16 @@ compress_if_possible(Token * tokens, size_t num_tokens)
         // c.addi      rd, imm      when rd=rs1
         // c.addi16sp  imm          when rd=rs1=x2 (invalid if imm=0)
         // c.addi4spn  rd-8, uimm   when rs1=x2    (invalid if uimm=0)
+        // NOTE: addi can also be compressed to c.mv when imm=0
         int rd = reg_name_to_bits(tokens[1].s);
         int rs1 = reg_name_to_bits(tokens[3].s);
         int imm = parse_int(tokens[5].s);
-        // TODO: enforce bounds on imm
+        // TODO: confirm bounds check on imm
         if ((rs1 == 0) && (imm < 64)) {
             strcpy(tokens[0].s, "c.li");
             tokens[3] = tokens[5];
             num_tokens -= 2;
-        } else if (rd == rs1) {
+        } else if ((rd == rs1) && (imm < 64)) {
             strcpy(tokens[0].s, "c.addi");
             tokens[3] = tokens[5];
             num_tokens -= 2;
@@ -843,32 +890,58 @@ compress_if_possible(Token * tokens, size_t num_tokens)
             sprintf(tokens[1].s, "x%d", rd-8);
             tokens[3] = tokens[5];
             num_tokens -= 2;
+        } else if (imm == 0) {
+            strcpy(tokens[0].s, "c.mv");
+            num_tokens -= 2;
         }
     } else if (mnemonic == MNEM_AND) {
         // and      rd, rs1, rs2
         // c.and    rd, rs2         when rd=rs1
         int rd = reg_name_to_bits(tokens[1].s);
         int rs1 = reg_name_to_bits(tokens[3].s);
-        if (rd == rs1) {
+        if ((rd == rs1) && (rd >= 8)) {
+            strcpy(tokens[0].s, "c.and");
+            sprintf(tokens[1].s, "x%d", rd-8);
             tokens[3] = tokens[5];
             num_tokens -= 2;
         }
     } else if (mnemonic == MNEM_ANDI) {
         // andi     rd, rs1, imm
-        // c.andi   rd, imm
-        // TODO
+        // c.andi   rd, imm         when rd=rs1
+        int rd = reg_name_to_bits(tokens[1].s);
+        int rs1 = reg_name_to_bits(tokens[3].s);
+        if ((rd == rs1) && (rd >= 8)) {
+            strcpy(tokens[0].s, "c.andi");
+            sprintf(tokens[1].s, "x%d", rd-8);
+            tokens[3] = tokens[5];
+            num_tokens -= 2;
+        }
     } else if (mnemonic == MNEM_BEQ) {
         // beq      rs1, rs2, offset
-        // c.beq    rs1, offset
-        // TODO
+        // c.beqz   rs1, offset     when rs2=x0
+        int rs2 = reg_name_to_bits(tokens[3].s);
+        if (rs2 == 0) {
+            strcpy(tokens[0].s, "c.beqz");
+            tokens[3] = tokens[5];
+            num_tokens -= 2;
+        }
     } else if (mnemonic == MNEM_EBREAK) {
         // c.ebreak
         strcpy(tokens[0].s, "c.ebreak");
     } else if (mnemonic == MNEM_JAL) {
         // jal      rd, offset          ; if rd is omitted, x1
-        // c.j      offset
-        // c.jal    offset
-        // TODO
+        // c.j      offset          when rd=x0
+        // c.jal    offset          when rd=x1
+        int rd = reg_name_to_bits(tokens[1].s);
+        if (rd == 0) {
+            strcpy(tokens[0].s, "c.j");
+            tokens[1] = tokens[3];
+            num_tokens -= 2;
+        } else if (rd == 1) {
+            strcpy(tokens[0].s, "c.jal");
+            tokens[1] = tokens[3];
+            num_tokens -= 2;
+        }
     } else if (mnemonic == MNEM_JALR) {
         // jalr     rd, offset(rs1)     ; if rd is omitted, x1
         // c.jr     rs1
@@ -990,11 +1063,10 @@ parse(Buffer buffer)
 }
 
 static void
-strip_comments(char * s)
+strip_comments(char * s, size_t l)
 {
     /* replace comments with ' ' */
     size_t i;
-    size_t l = strlen(s);
     int comment_flag = 0;
     for (i = 0; i < l; i++) {
         if (!comment_flag) {
@@ -1020,7 +1092,7 @@ main(int argc, char * argv[])
     }
 
     Buffer file_contents = read_file(argv[1]);
-    strip_comments(file_contents.p);
+    strip_comments(file_contents.p, file_contents.n);
     parse(file_contents);
     free(file_contents.p);
 
