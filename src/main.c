@@ -9,7 +9,6 @@
 #define MAX_TOKENS_PER_LINE 10
 #define MAX_PSEUDO_EXPAND 3
 
-// TODO: use these
 #define EXT_M 1
 #define EXT_A 2
 #define EXT_F 4
@@ -210,7 +209,6 @@ typedef enum {
     FMT_NUM,
     FMT_INVALID
 } Format;
-#define FMT_TODO FMT_INVALID
 
 // TODO: maybe just make this an array
 static Format
@@ -232,48 +230,43 @@ compressed_available()
     return (extensions & EXT_C) && (option_stack[option_sp] & OPTION_RVC);
 }
 
-/* TODO: decide if this should detect invalid register names */
 static int
-reg_name_to_bits(const char * reg_name)
+reg_name_to_bits(const char * reg_name, int ln)
 {
-    assert(reg_name[0] != '\0' && reg_name[1] != '\0');
+    if (strlen(reg_name) < 2)
+        goto error;
 
-    if (reg_name[0] == 'x') {
-        int n = atoi(reg_name+1);
-        assert(n >= 0 && n <= 31);
-        return n;
-    } else if (strcmp(reg_name, "ra") == 0) {
-        return 1;
-    } else if (strcmp(reg_name, "sp") == 0) {
-        return 2;
-    } else if (strcmp(reg_name, "gp") == 0) {
-        return 3;
-    } else if (strcmp(reg_name, "tp") == 0) {
-        return 4;
-    } else if (strcmp(reg_name, "fp") == 0) {
-        return 8;
-    } else if (reg_name[0] == 'a') {
-        int n = atoi(reg_name+1);
-        assert(n >= 0 && n <= 7);
-        return n+10;
-    } else if (reg_name[0] == 's') {
-        int n = atoi(reg_name+1);
-        assert(n >= 0 && n <= 11);
-        if (n <= 1)
-            return n+8;
-        else
-            return n-2+18;
-    } else if (reg_name[0] == 't') {
-        int n = atoi(reg_name+1);
-        assert(n >= 0 && n <= 6);
-        if (n <= 2)
-            return n+5;
-        else
-            return n-3+28;
-    } else {
-        assert(0);
+    if (strcmp(reg_name, "ra") == 0) return 1;
+    if (strcmp(reg_name, "sp") == 0) return 2;
+    if (strcmp(reg_name, "gp") == 0) return 3;
+    if (strcmp(reg_name, "tp") == 0) return 4;
+    if (strcmp(reg_name, "fp") == 0) return 8;
+
+    int n;
+    if (parse_int(reg_name+1, &n) < 0)
+        goto error;
+
+    switch (reg_name[0]) {
+        case 'x':
+            if (n < 0 || n > 31)
+                goto error;
+            return n;
+        case 'a':
+            if (n < 0 || n > 7)
+                goto error;
+            return n+10;
+        case 's':
+            if (n < 0 || n > 31)
+                goto error;
+            return (n <= 1) ? n+8 : n-2+18;
+        case 't':
+            if (n < 0 || n > 6)
+                goto error;
+            return (n <= 2) ? n+5 : n-3+28;
     }
 
+error:
+    die("error: invalid register name '%s' on line %d\n", reg_name, ln);
     return 0;
 }
 
@@ -507,13 +500,13 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
 
         case FMT_REG_OFFSET_OR_OFFSET:
             if (num_tokens == 4) {
-                rd = reg_name_to_bits(tokens[1].s);
+                rd = reg_name_to_bits(tokens[1].s, ln);
                 if (tokens[3].t == TOK_NUM)
-                    imm = parse_int(tokens[3].s);
+                    imm = parse_int_or_die(tokens[3].s);
             } else if (num_tokens == 2) {
-                rd = reg_name_to_bits("x1");
+                rd = reg_name_to_bits("x1", ln);
                 if (tokens[1].t == TOK_NUM)
-                    imm = parse_int(tokens[1].s);
+                    imm = parse_int_or_die(tokens[1].s);
             } else {
                 expect_n_tokens(num_tokens, 4, ln);
             }
@@ -532,26 +525,26 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
         case FMT_REG_NUM:
             // TODO: confirm rd is correct for compressed
             expect_n_tokens(num_tokens, 4, ln);
-            rd  = reg_name_to_bits(tokens[1].s);
-            imm = parse_int(tokens[3].s);
+            rd  = reg_name_to_bits(tokens[1].s, ln);
+            imm = parse_int_or_die(tokens[3].s);
             imm_fmt = compressed ? ci_fmt_imm(imm) : u_fmt_imm(imm);
             opcode |= imm_fmt | (rd << 7);
             break;
 
         case FMT_REG_REG_REG:
             expect_n_tokens(num_tokens, 6, ln);
-            rd  = reg_name_to_bits(tokens[1].s);
-            rs1 = reg_name_to_bits(tokens[3].s);
-            rs2 = reg_name_to_bits(tokens[5].s);
+            rd  = reg_name_to_bits(tokens[1].s, ln);
+            rs1 = reg_name_to_bits(tokens[3].s, ln);
+            rs2 = reg_name_to_bits(tokens[5].s, ln);
             opcode |= (rs2 << 20) | (rs1 << 15) | (rd << 7);
             break;
 
         case FMT_REG_REG_OFFSET:
             expect_n_tokens(num_tokens, 6, ln);
-            rs1 = reg_name_to_bits(tokens[1].s);
-            rs2 = reg_name_to_bits(tokens[3].s);
+            rs1 = reg_name_to_bits(tokens[1].s, ln);
+            rs2 = reg_name_to_bits(tokens[3].s, ln);
             if (tokens[5].t == TOK_NUM)
-                imm = parse_int(tokens[5].s);
+                imm = parse_int_or_die(tokens[5].s);
             else {
                 add_ref(tokens[5].s, REF_B, curr_addr, ln);
                 imm = 0;
@@ -563,22 +556,22 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
         case FMT_REG_REG_NUM:
             // TODO: compressed
             expect_n_tokens(num_tokens, 6, ln);
-            rd = reg_name_to_bits(tokens[1].s);
-            rs1 = reg_name_to_bits(tokens[3].s);
-            imm = parse_int(tokens[5].s);
+            rd = reg_name_to_bits(tokens[1].s, ln);
+            rs1 = reg_name_to_bits(tokens[3].s, ln);
+            imm = parse_int_or_die(tokens[5].s);
             opcode |= (imm << 20) | (rs1 << 15) | (rd << 7);
             break;
 
         case FMT_REG_NUM_REG:
             expect_n_tokens(num_tokens, 7, ln);
-            imm = parse_int(tokens[3].s);
-            rs1 = reg_name_to_bits(tokens[5].s);
+            imm = parse_int_or_die(tokens[3].s);
+            rs1 = reg_name_to_bits(tokens[5].s, ln);
             if (mnemonic == MNEM_SW) {
-                rs2 = reg_name_to_bits(tokens[1].s);
+                rs2 = reg_name_to_bits(tokens[1].s, ln);
                 imm_fmt = s_fmt_imm(imm);
                 opcode |= imm_fmt | (rs2 << 20) | (rs1 << 15);
             } else {
-                rd = reg_name_to_bits(tokens[1].s);
+                rd = reg_name_to_bits(tokens[1].s, ln);
                 imm_fmt = i_fmt_imm(imm);
                 opcode |= imm_fmt | (rs1 << 15) | (rd << 7);
             }
@@ -595,7 +588,7 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
         case FMT_OFFSET:
             // TODO
             if (tokens[1].t == TOK_NUM)
-                imm = parse_int(tokens[1].s);
+                imm = parse_int_or_die(tokens[1].s);
             else {
                 add_ref(tokens[1].s, REF_CJ, curr_addr, ln);
                 imm = 0;
@@ -610,8 +603,8 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
         case FMT_REG_REG:
             if (compressed) {
                 // TODO: make sure rd and rs2 are correct
-                rd = reg_name_to_bits(tokens[1].s);
-                rs2 = reg_name_to_bits(tokens[3].s);
+                rd = reg_name_to_bits(tokens[1].s, ln);
+                rs2 = reg_name_to_bits(tokens[3].s, ln);
                 opcode |= (rd << 7) | (rs2 << 2);
             } else {
                 assert(0);
@@ -620,7 +613,7 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
 
         case FMT_REG:
             if (compressed) {
-                rs1 = reg_name_to_bits(tokens[1].s);
+                rs1 = reg_name_to_bits(tokens[1].s, ln);
                 opcode |= (rs1 << 7);
             } else {
                 assert(0);
@@ -675,15 +668,15 @@ parse_directive(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_
     // TODO: allow for lists of numbers
     if (strcmp(tokens[0].s, ".byte") == 0) {
         expect_n_tokens(num_tokens, 2, ln);
-        deposit(output, curr_addr++, 1, parse_int(tokens[1].s));
+        deposit(output, curr_addr++, 1, parse_int_or_die(tokens[1].s));
     } else if (strcmp(tokens[0].s, ".half") == 0) {
         expect_n_tokens(num_tokens, 2, ln);
-        int n = parse_int(tokens[1].s);
+        int n = parse_int_or_die(tokens[1].s);
         deposit(output, curr_addr, 2, n);
         curr_addr += 2;
     } else if (strcmp(tokens[0].s, ".word") == 0) {
         expect_n_tokens(num_tokens, 2, ln);
-        deposit(output, curr_addr, 4, parse_int(tokens[1].s));
+        deposit(output, curr_addr, 4, parse_int_or_die(tokens[1].s));
         curr_addr += 4;
     } else if (strcmp(tokens[0].s, ".dword") == 0) {
         expect_n_tokens(num_tokens, 2, ln);
@@ -698,7 +691,7 @@ parse_directive(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_
         deposit(output, curr_addr++, 1, '\0');
     } else if (strcmp(tokens[0].s, ".align") == 0) {
         expect_n_tokens(num_tokens, 2, ln);
-        int log2_alignment = parse_int(tokens[1].s);
+        int log2_alignment = parse_int_or_die(tokens[1].s);
         if ((log2_alignment < 1) || (log2_alignment > 20))
             die("error: invalid alignment %d on line %d\n", log2_alignment, ln);
         curr_addr = align_output(output, 1 << log2_alignment, curr_addr);
@@ -927,7 +920,7 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
 }
 
 static size_t
-compress_if_possible(Token * tokens, size_t num_tokens)
+compress_if_possible(Token * tokens, size_t num_tokens, int ln)
 {
     Mnemonic mnemonic = str_idx_in_list(tokens[0].s, mnemonics, num_mnemonics);
     assert(mnemonic < num_mnemonics);
@@ -935,9 +928,9 @@ compress_if_possible(Token * tokens, size_t num_tokens)
         // add      rd, rs1, rs2
         // c.add    rd, rs2         when rd=rs1 (invalid if rd=x0 or rs2=x0)
         // c.mv     rd, rs2         when rd=x0  (invalid if rs2=x0)
-        int rd = reg_name_to_bits(tokens[1].s);
-        int rs1 = reg_name_to_bits(tokens[3].s);
-        int rs2 = reg_name_to_bits(tokens[5].s);
+        int rd = reg_name_to_bits(tokens[1].s, ln);
+        int rs1 = reg_name_to_bits(tokens[3].s, ln);
+        int rs2 = reg_name_to_bits(tokens[5].s, ln);
         if ((rd == rs1) && (rd != 0) && (rs2 != 0)) {
             strcpy(tokens[0].s, "c.add");
             tokens[3] = tokens[5];
@@ -954,9 +947,9 @@ compress_if_possible(Token * tokens, size_t num_tokens)
         // c.addi16sp  imm          when rd=rs1=x2 (invalid if imm=0)
         // c.addi4spn  rd-8, uimm   when rs1=x2    (invalid if uimm=0)
         // NOTE: addi can also be compressed to c.mv when imm=0
-        int rd = reg_name_to_bits(tokens[1].s);
-        int rs1 = reg_name_to_bits(tokens[3].s);
-        int imm = parse_int(tokens[5].s);
+        int rd = reg_name_to_bits(tokens[1].s, ln);
+        int rs1 = reg_name_to_bits(tokens[3].s, ln);
+        int imm = parse_int_or_die(tokens[5].s);
         // TODO: confirm bounds check on imm
         if ((rs1 == 0) && (imm < 64)) {
             strcpy(tokens[0].s, "c.li");
@@ -982,8 +975,8 @@ compress_if_possible(Token * tokens, size_t num_tokens)
     } else if (mnemonic == MNEM_AND) {
         // and      rd, rs1, rs2
         // c.and    rd, rs2         when rd=rs1
-        int rd = reg_name_to_bits(tokens[1].s);
-        int rs1 = reg_name_to_bits(tokens[3].s);
+        int rd = reg_name_to_bits(tokens[1].s, ln);
+        int rs1 = reg_name_to_bits(tokens[3].s, ln);
         if ((rd == rs1) && (rd >= 8)) {
             strcpy(tokens[0].s, "c.and");
             sprintf(tokens[1].s, "x%d", rd-8);
@@ -993,8 +986,8 @@ compress_if_possible(Token * tokens, size_t num_tokens)
     } else if (mnemonic == MNEM_ANDI) {
         // andi     rd, rs1, imm
         // c.andi   rd, imm         when rd=rs1
-        int rd = reg_name_to_bits(tokens[1].s);
-        int rs1 = reg_name_to_bits(tokens[3].s);
+        int rd = reg_name_to_bits(tokens[1].s, ln);
+        int rs1 = reg_name_to_bits(tokens[3].s, ln);
         if ((rd == rs1) && (rd >= 8)) {
             strcpy(tokens[0].s, "c.andi");
             sprintf(tokens[1].s, "x%d", rd-8);
@@ -1004,7 +997,7 @@ compress_if_possible(Token * tokens, size_t num_tokens)
     } else if (mnemonic == MNEM_BEQ) {
         // beq      rs1, rs2, offset
         // c.beqz   rs1, offset     when rs2=x0
-        int rs2 = reg_name_to_bits(tokens[3].s);
+        int rs2 = reg_name_to_bits(tokens[3].s, ln);
         if (rs2 == 0) {
             strcpy(tokens[0].s, "c.beqz");
             tokens[3] = tokens[5];
@@ -1017,7 +1010,7 @@ compress_if_possible(Token * tokens, size_t num_tokens)
         // jal      rd, offset          ; if rd is omitted, x1
         // c.j      offset          when rd=x0
         // c.jal    offset          when rd=x1
-        int rd = reg_name_to_bits(tokens[1].s);
+        int rd = reg_name_to_bits(tokens[1].s, ln);
         if (rd == 0) {
             strcpy(tokens[0].s, "c.j");
             tokens[1] = tokens[3];
@@ -1031,9 +1024,9 @@ compress_if_possible(Token * tokens, size_t num_tokens)
         // jalr     rd, offset(rs1)     ; if rd is omitted, x1
         // c.jr     rs1             when rd=x0 and offset=0
         // c.jalr   rs1             when rd=x1 and offset=0
-        int offset = parse_int(tokens[3].s);
+        int offset = parse_int_or_die(tokens[3].s);
         if (offset == 0) {
-            int rd = reg_name_to_bits(tokens[1].s);
+            int rd = reg_name_to_bits(tokens[1].s, ln);
             if (rd == 0) {
                 strcpy(tokens[0].s, "c.jr");
                 tokens[1] = tokens[5];
@@ -1135,7 +1128,7 @@ parse(Buffer buffer)
         for (size_t r = 0; r < num_pseudo_expansions; r++) {
             if (expanded_tokens[r][0].t == TOK_MNEM) {
                 if (compressed_available())
-                    num_expanded_tokens[r] = compress_if_possible(expanded_tokens[r], num_expanded_tokens[r]);
+                    num_expanded_tokens[r] = compress_if_possible(expanded_tokens[r], num_expanded_tokens[r], ts.ln);
                 curr_addr = parse_instr(expanded_tokens[r], num_expanded_tokens[r], &output, curr_addr, ts.ln);
             } else if (expanded_tokens[r][0].t == TOK_DIR) {
                 curr_addr = parse_directive(expanded_tokens[r], num_expanded_tokens[r], &output, curr_addr, ts.ln);
@@ -1216,6 +1209,18 @@ parse_isa_string(const char * isa)
             default:
                 die("error: unsupported extension '%c' in isa string '%s'\n", isa[i], isa);
         }
+    }
+    if (extensions & EXT_M) {
+        die("error: 'm' extension not supported\n");
+    }
+    if (extensions & EXT_A) {
+        die("error: 'a' extension not supported\n");
+    }
+    if (extensions & EXT_F) {
+        die("error: 'f' extension not supported\n");
+    }
+    if (extensions & EXT_D) {
+        die("error: 'd' extension not supported\n");
     }
 }
 

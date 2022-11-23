@@ -89,24 +89,37 @@ read_file(const char * filename)
 }
 
 int
-parse_int(const char * buff) {
-  char *end;
-  int si;
-  errno = 0;
-  const long sl = strtol(buff, &end, 0);
-  if (end == buff) {
-    fprintf(stderr, "%s: not a valid number\n", buff);
-  } else if ('\0' != *end) {
-    fprintf(stderr, "%s: extra characters at end of input: %s\n", buff, end);
-  } else if ((LONG_MIN == sl || LONG_MAX == sl) && ERANGE == errno) {
-    fprintf(stderr, "%s out of range of type long\n", buff);
-  } else if (sl > INT_MAX) {
-    fprintf(stderr, "%ld greater than INT_MAX\n", sl);
-  } else if (sl < INT_MIN) {
-    fprintf(stderr, "%ld less than INT_MIN\n", sl);
-  } else {
-    si = (int)sl;
-    return si;
-  }
-  exit(EXIT_FAILURE);
+parse_int_or_die(const char * s)
+{
+    int i;
+    int rv = parse_int(s, &i);
+    switch (rv) {
+        case 0: break;
+        case -1: die("error: %s: not a valid number\n", s);
+        case -2: die("error: %s: extra characters at end of input\n", s);
+        case -3: die("error: %s out of range of type long\n", s);
+        case -4: die("error: %s greater than INT_MAX\n", s);
+        case -5: die("error: %s less than INT_MIN\n", s);
+        default: assert(0);
+    }
+    return i;
+}
+
+int
+parse_int(const char * s, int * x) {
+    char * end;
+    errno = 0;
+    const long sl = strtol(s, &end, 0);
+    if (end == s)
+        return -1;
+    else if ('\0' != *end)
+        return -2;
+    else if ((LONG_MIN == sl || LONG_MAX == sl) && ERANGE == errno)
+        return -3;
+    else if (sl > INT_MAX)
+        return -4;
+    else if (sl < INT_MIN)
+        return -5;
+    *x = (int) sl;
+    return 0;
 }

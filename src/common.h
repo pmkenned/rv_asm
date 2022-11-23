@@ -18,7 +18,8 @@ uint64_t unpack_le(void * p, size_t n);
 Buffer read_file(const char * filename);
 size_t str_idx_in_list(const char * str, const char * list[], size_t n);
 int str_in_list(const char * str, const char * list[], size_t n);
-int parse_int(const char * buff);
+int parse_int_or_die(const char * s);
+int parse_int(const char * s, int * x);
 
 // defined in main.c
 extern const char * mnemonics[];
