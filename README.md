@@ -9,10 +9,10 @@ RISC-V Assembler
     .data
     .bss
     .section
-    .align
+    .align (DONE)
     .balign
     .globl
-    .string
+    .string (DONE)
     .float
     .double
     .option

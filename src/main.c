@@ -23,55 +23,55 @@ int option_stack[32] = { OPTION_RVC };
 size_t option_sp = 0;
 
 #define PSEUDO_LIST \
-    X(PSEUDO_BEQZ,          "beqz",         FMT_REG_OFFSET      ) \
-    X(PSEUDO_BGEZ,          "bgez",         FMT_REG_OFFSET      ) \
-    X(PSEUDO_BGT,           "bgt",          FMT_REG_REG_OFFSET  ) \
-    X(PSEUDO_BGTU,          "bgtu",         FMT_REG_REG_OFFSET  ) \
-    X(PSEUDO_BGTZ,          "bgtz",         FMT_REG_OFFSET      ) \
-    X(PSEUDO_BLE,           "ble",          FMT_REG_REG_OFFSET  ) \
-    X(PSEUDO_BLEU,          "bleu",         FMT_REG_REG_OFFSET  ) \
-    X(PSEUDO_BLEZ,          "blez",         FMT_REG_OFFSET      ) \
-    X(PSEUDO_BLTZ,          "bltz",         FMT_REG_OFFSET      ) \
-    X(PSEUDO_BNEZ,          "bnez",         FMT_REG_OFFSET      ) \
-    X(PSEUDO_CALL,          "call",         FMT_REG_SYMBOL      ) \
-    X(PSEUDO_CSRR,          "csrr",         FMT_REG_CSR         ) \
-    X(PSEUDO_CSRC,          "csrc",         FMT_CSR_REG         ) \
-    X(PSEUDO_CSRCI,         "csrci",        FMT_CSR_NUM         ) \
-    X(PSEUDO_CSRS,          "csrs",         FMT_CSR_REG         ) \
-    X(PSEUDO_CSRSI,         "csrsi",        FMT_CSR_NUM         ) \
-    X(PSEUDO_CSRW,          "csrw",         FMT_CSR_REG         ) \
-    X(PSEUDO_CSRWI,         "csrwi",        FMT_CSR_NUM         ) \
-    X(PSEUDO_J,             "j",            FMT_OFFSET          ) \
-    X(PSEUDO_JR,            "jr",           FMT_REG             ) \
-    X(PSEUDO_LA,            "la",           FMT_REG_SYMBOL      ) \
-    X(PSEUDO_LI,            "li",           FMT_REG_NUM         ) \
-    X(PSEUDO_LLA,           "lla",          FMT_REG_SYMBOL      ) \
-    X(PSEUDO_MV,            "mv",           FMT_REG_REG         ) \
-    X(PSEUDO_NEG,           "neg",          FMT_REG_REG         ) \
-    X(PSEUDO_NOP,           "nop",          FMT_NONE            ) \
-    X(PSEUDO_NOT,           "not",          FMT_REG_REG         ) \
-    X(PSEUDO_RDCYCLE,       "rdcycle",      FMT_NONE            ) \
-    X(PSEUDO_RDINSTRET,     "rdinstret",    FMT_NONE            ) \
-    X(PSEUDO_RDTIME,        "rdtime",       FMT_NONE            ) \
-    X(PSEUDO_RET,           "ret",          FMT_NONE            ) \
-    X(PSEUDO_SEQZ,          "seqz",         FMT_REG_REG         ) \
-    X(PSEUDO_SGTZ,          "sgtz",         FMT_REG_REG         ) \
-    X(PSEUDO_SLTZ,          "sltz",         FMT_REG_REG         ) \
-    X(PSEUDO_SNEZ,          "snez",         FMT_REG_REG         ) \
-    X(PSEUDO_SUB,           "sub",          FMT_REG_REG_REG     ) \
-    X(PSEUDO_TAIL,          "tail",         FMT_SYMBOL          ) \
-    X(PSEUDO_RDCYCLEH,      "rdcycleh",     FMT_NONE            ) \
-    X(PSEUDO_RDINSTRETH,    "rdinstreth",   FMT_NONE            ) \
-    X(PSEUDO_RDTIMEH,       "rdtimeh",      FMT_NONE            )
+    X(PSEUDO_BEQZ,          "beqz",         OPERANDS_REG_OFFSET      ) \
+    X(PSEUDO_BGEZ,          "bgez",         OPERANDS_REG_OFFSET      ) \
+    X(PSEUDO_BGT,           "bgt",          OPERANDS_REG_REG_OFFSET  ) \
+    X(PSEUDO_BGTU,          "bgtu",         OPERANDS_REG_REG_OFFSET  ) \
+    X(PSEUDO_BGTZ,          "bgtz",         OPERANDS_REG_OFFSET      ) \
+    X(PSEUDO_BLE,           "ble",          OPERANDS_REG_REG_OFFSET  ) \
+    X(PSEUDO_BLEU,          "bleu",         OPERANDS_REG_REG_OFFSET  ) \
+    X(PSEUDO_BLEZ,          "blez",         OPERANDS_REG_OFFSET      ) \
+    X(PSEUDO_BLTZ,          "bltz",         OPERANDS_REG_OFFSET      ) \
+    X(PSEUDO_BNEZ,          "bnez",         OPERANDS_REG_OFFSET      ) \
+    X(PSEUDO_CALL,          "call",         OPERANDS_REG_SYMBOL      ) \
+    X(PSEUDO_CSRR,          "csrr",         OPERANDS_REG_CSR         ) \
+    X(PSEUDO_CSRC,          "csrc",         OPERANDS_CSR_REG         ) \
+    X(PSEUDO_CSRCI,         "csrci",        OPERANDS_CSR_NUM         ) \
+    X(PSEUDO_CSRS,          "csrs",         OPERANDS_CSR_REG         ) \
+    X(PSEUDO_CSRSI,         "csrsi",        OPERANDS_CSR_NUM         ) \
+    X(PSEUDO_CSRW,          "csrw",         OPERANDS_CSR_REG         ) \
+    X(PSEUDO_CSRWI,         "csrwi",        OPERANDS_CSR_NUM         ) \
+    X(PSEUDO_J,             "j",            OPERANDS_OFFSET          ) \
+    X(PSEUDO_JR,            "jr",           OPERANDS_REG             ) \
+    X(PSEUDO_LA,            "la",           OPERANDS_REG_SYMBOL      ) \
+    X(PSEUDO_LI,            "li",           OPERANDS_REG_NUM         ) \
+    X(PSEUDO_LLA,           "lla",          OPERANDS_REG_SYMBOL      ) \
+    X(PSEUDO_MV,            "mv",           OPERANDS_REG_REG         ) \
+    X(PSEUDO_NEG,           "neg",          OPERANDS_REG_REG         ) \
+    X(PSEUDO_NOP,           "nop",          OPERANDS_NONE            ) \
+    X(PSEUDO_NOT,           "not",          OPERANDS_REG_REG         ) \
+    X(PSEUDO_RDCYCLE,       "rdcycle",      OPERANDS_NONE            ) \
+    X(PSEUDO_RDINSTRET,     "rdinstret",    OPERANDS_NONE            ) \
+    X(PSEUDO_RDTIME,        "rdtime",       OPERANDS_NONE            ) \
+    X(PSEUDO_RET,           "ret",          OPERANDS_NONE            ) \
+    X(PSEUDO_SEQZ,          "seqz",         OPERANDS_REG_REG         ) \
+    X(PSEUDO_SGTZ,          "sgtz",         OPERANDS_REG_REG         ) \
+    X(PSEUDO_SLTZ,          "sltz",         OPERANDS_REG_REG         ) \
+    X(PSEUDO_SNEZ,          "snez",         OPERANDS_REG_REG         ) \
+    X(PSEUDO_SUB,           "sub",          OPERANDS_REG_REG_REG     ) \
+    X(PSEUDO_TAIL,          "tail",         OPERANDS_SYMBOL          ) \
+    X(PSEUDO_RDCYCLEH,      "rdcycleh",     OPERANDS_NONE            ) \
+    X(PSEUDO_RDINSTRETH,    "rdinstreth",   OPERANDS_NONE            ) \
+    X(PSEUDO_RDTIMEH,       "rdtimeh",      OPERANDS_NONE            )
 
 typedef enum {
-#define X(MNEM, STR, FMT) MNEM,
+#define X(MNEM, STR, OPERANDS) MNEM,
     PSEUDO_LIST
 #undef X
 } Pseudo;
 
 const char * pseudo_mnemonics[] = {
-#define X(MNEM, STR, FMT) STR,
+#define X(MNEM, STR, OPERANDS) STR,
     PSEUDO_LIST
 #undef X
     "invalid"
@@ -80,149 +80,160 @@ const char * pseudo_mnemonics[] = {
 const size_t num_pseudo_mnemonics = NELEM(pseudo_mnemonics);
 
 #define INST_LIST_RV32I \
-    X(MNEM_LUI,     "lui",      FMT_REG_NUM,                0x00000037) \
-    X(MNEM_AUIPC,   "auipc",    FMT_REG_NUM,                0x00000017) \
-    X(MNEM_JAL,     "jal",      FMT_REG_OFFSET,             0x0000006f) \
-    X(MNEM_JALR,    "jalr",     FMT_REG_NUM_REG,            0x00000067) \
-    X(MNEM_BEQ,     "beq",      FMT_REG_REG_OFFSET,         0x00000063) \
-    X(MNEM_BNE,     "bne",      FMT_REG_REG_OFFSET,         0x00001063) \
-    X(MNEM_BLT,     "blt",      FMT_REG_REG_OFFSET,         0x00004063) \
-    X(MNEM_BGE,     "bge",      FMT_REG_REG_OFFSET,         0x00005063) \
-    X(MNEM_BLTU,    "bltu",     FMT_REG_REG_OFFSET,         0x00006063) \
-    X(MNEM_BGEU,    "bgeu",     FMT_REG_REG_OFFSET,         0x00007063) \
-    X(MNEM_LB,      "lb",       FMT_REG_NUM_REG,            0x00000003) \
-    X(MNEM_LH,      "lh",       FMT_REG_NUM_REG,            0x00001003) \
-    X(MNEM_LW,      "lw",       FMT_REG_NUM_REG,            0x00002003) \
-    X(MNEM_LBU,     "lbu",      FMT_REG_NUM_REG,            0x00004003) \
-    X(MNEM_LHU,     "lhu",      FMT_REG_NUM_REG,            0x00005003) \
-    X(MNEM_SB,      "sb",       FMT_REG_NUM_REG,            0x00000023) \
-    X(MNEM_SH,      "sh",       FMT_REG_NUM_REG,            0x00001023) \
-    X(MNEM_SW,      "sw",       FMT_REG_NUM_REG,            0x00002023) \
-    X(MNEM_ADDI,    "addi",     FMT_REG_REG_NUM,            0x00000013) \
-    X(MNEM_SLTI,    "slti",     FMT_REG_REG_NUM,            0x00002013) \
-    X(MNEM_SLTIU,   "sltiu",    FMT_REG_REG_NUM,            0x00003013) \
-    X(MNEM_XORI,    "xori",     FMT_REG_REG_NUM,            0x00004013) \
-    X(MNEM_ORI,     "ori",      FMT_REG_REG_NUM,            0x00006013) \
-    X(MNEM_ANDI,    "andi",     FMT_REG_REG_NUM,            0x00007013) \
-    X(MNEM_SLLI,    "slli",     FMT_REG_REG_NUM,            0x00001013) \
-    X(MNEM_SRLI,    "srli",     FMT_REG_REG_NUM,            0x00005013) \
-    X(MNEM_SRAI,    "srai",     FMT_REG_REG_NUM,            0x40005013) \
-    X(MNEM_ADD,     "add",      FMT_REG_REG_REG,            0x00000033) \
-    X(MNEM_SUB,     "sub",      FMT_REG_REG_REG,            0x40000033) \
-    X(MNEM_SLL,     "sll",      FMT_REG_REG_REG,            0x00001033) \
-    X(MNEM_SLT,     "slt",      FMT_REG_REG_REG,            0x00002033) \
-    X(MNEM_SLTU,    "sltu",     FMT_REG_REG_REG,            0x00003033) \
-    X(MNEM_XOR,     "xor",      FMT_REG_REG_REG,            0x00004033) \
-    X(MNEM_SRL,     "srl",      FMT_REG_REG_REG,            0x00005033) \
-    X(MNEM_SRA,     "sra",      FMT_REG_REG_REG,            0x40005033) \
-    X(MNEM_OR,      "or",       FMT_REG_REG_REG,            0x00006033) \
-    X(MNEM_AND,     "and",      FMT_REG_REG_REG,            0x00007033) \
-    X(MNEM_FENCE,   "fence",    FMT_IORW_IORW,              0x0000000f) \
-    X(MNEM_FENCE_I, "fence.i",  FMT_NONE,                   0x0000100f) \
-    X(MNEM_ECALL,   "ecall",    FMT_NONE,                   0x00000073) \
-    X(MNEM_EBREAK,  "ebreak",   FMT_NONE,                   0x00100073) \
-    X(MNEM_CSRRW,   "csrrw",    FMT_REG_CSR_REG,            0x00001073) \
-    X(MNEM_CSRRS,   "csrrs",    FMT_REG_CSR_REG,            0x00002073) \
-    X(MNEM_CSRRC,   "csrrc",    FMT_REG_CSR_REG,            0x00003073) \
-    X(MNEM_CSRRWI,  "csrrwi",   FMT_REG_CSR_NUM,            0x00005073) \
-    X(MNEM_CSRRSI,  "csrrsi",   FMT_REG_CSR_NUM,            0x00006073) \
-    X(MNEM_CSRRCI,  "csrrci",   FMT_REG_CSR_NUM,            0x00007073)
+    X(MNEM_LUI,     "lui",      FMT_U,  OPERANDS_REG_NUM,           0x00000037) \
+    X(MNEM_AUIPC,   "auipc",    FMT_U,  OPERANDS_REG_NUM,           0x00000017) \
+    X(MNEM_JAL,     "jal",      FMT_J,  OPERANDS_REG_OFFSET,        0x0000006f) \
+    X(MNEM_JALR,    "jalr",     FMT_I,  OPERANDS_REG_NUM_REG,       0x00000067) \
+    X(MNEM_BEQ,     "beq",      FMT_B,  OPERANDS_REG_REG_OFFSET,    0x00000063) \
+    X(MNEM_BNE,     "bne",      FMT_B,  OPERANDS_REG_REG_OFFSET,    0x00001063) \
+    X(MNEM_BLT,     "blt",      FMT_B,  OPERANDS_REG_REG_OFFSET,    0x00004063) \
+    X(MNEM_BGE,     "bge",      FMT_B,  OPERANDS_REG_REG_OFFSET,    0x00005063) \
+    X(MNEM_BLTU,    "bltu",     FMT_B,  OPERANDS_REG_REG_OFFSET,    0x00006063) \
+    X(MNEM_BGEU,    "bgeu",     FMT_B,  OPERANDS_REG_REG_OFFSET,    0x00007063) \
+    X(MNEM_LB,      "lb",       FMT_I,  OPERANDS_REG_NUM_REG,       0x00000003) \
+    X(MNEM_LH,      "lh",       FMT_I,  OPERANDS_REG_NUM_REG,       0x00001003) \
+    X(MNEM_LW,      "lw",       FMT_I,  OPERANDS_REG_NUM_REG,       0x00002003) \
+    X(MNEM_LBU,     "lbu",      FMT_I,  OPERANDS_REG_NUM_REG,       0x00004003) \
+    X(MNEM_LHU,     "lhu",      FMT_I,  OPERANDS_REG_NUM_REG,       0x00005003) \
+    X(MNEM_SB,      "sb",       FMT_S,  OPERANDS_REG_NUM_REG,       0x00000023) \
+    X(MNEM_SH,      "sh",       FMT_S,  OPERANDS_REG_NUM_REG,       0x00001023) \
+    X(MNEM_SW,      "sw",       FMT_S,  OPERANDS_REG_NUM_REG,       0x00002023) \
+    X(MNEM_ADDI,    "addi",     FMT_I,  OPERANDS_REG_REG_NUM,       0x00000013) \
+    X(MNEM_SLTI,    "slti",     FMT_I,  OPERANDS_REG_REG_NUM,       0x00002013) \
+    X(MNEM_SLTIU,   "sltiu",    FMT_I,  OPERANDS_REG_REG_NUM,       0x00003013) \
+    X(MNEM_XORI,    "xori",     FMT_I,  OPERANDS_REG_REG_NUM,       0x00004013) \
+    X(MNEM_ORI,     "ori",      FMT_I,  OPERANDS_REG_REG_NUM,       0x00006013) \
+    X(MNEM_ANDI,    "andi",     FMT_I,  OPERANDS_REG_REG_NUM,       0x00007013) \
+    X(MNEM_SLLI,    "slli",     FMT_I,  OPERANDS_REG_REG_NUM,       0x00001013) \
+    X(MNEM_SRLI,    "srli",     FMT_I,  OPERANDS_REG_REG_NUM,       0x00005013) \
+    X(MNEM_SRAI,    "srai",     FMT_I,  OPERANDS_REG_REG_NUM,       0x40005013) \
+    X(MNEM_ADD,     "add",      FMT_R,  OPERANDS_REG_REG_REG,       0x00000033) \
+    X(MNEM_SUB,     "sub",      FMT_R,  OPERANDS_REG_REG_REG,       0x40000033) \
+    X(MNEM_SLL,     "sll",      FMT_R,  OPERANDS_REG_REG_REG,       0x00001033) \
+    X(MNEM_SLT,     "slt",      FMT_R,  OPERANDS_REG_REG_REG,       0x00002033) \
+    X(MNEM_SLTU,    "sltu",     FMT_R,  OPERANDS_REG_REG_REG,       0x00003033) \
+    X(MNEM_XOR,     "xor",      FMT_R,  OPERANDS_REG_REG_REG,       0x00004033) \
+    X(MNEM_SRL,     "srl",      FMT_R,  OPERANDS_REG_REG_REG,       0x00005033) \
+    X(MNEM_SRA,     "sra",      FMT_R,  OPERANDS_REG_REG_REG,       0x40005033) \
+    X(MNEM_OR,      "or",       FMT_R,  OPERANDS_REG_REG_REG,       0x00006033) \
+    X(MNEM_AND,     "and",      FMT_R,  OPERANDS_REG_REG_REG,       0x00007033) \
+    X(MNEM_FENCE,   "fence",    FMT_I,  OPERANDS_IORW_IORW,         0x0000000f) \
+    X(MNEM_FENCE_I, "fence.i",  FMT_I,  OPERANDS_NONE,              0x0000100f) \
+    X(MNEM_ECALL,   "ecall",    FMT_I,  OPERANDS_NONE,              0x00000073) \
+    X(MNEM_EBREAK,  "ebreak",   FMT_I,  OPERANDS_NONE,              0x00100073) \
+    X(MNEM_CSRRW,   "csrrw",    FMT_I,  OPERANDS_REG_CSR_REG,       0x00001073) \
+    X(MNEM_CSRRS,   "csrrs",    FMT_I,  OPERANDS_REG_CSR_REG,       0x00002073) \
+    X(MNEM_CSRRC,   "csrrc",    FMT_I,  OPERANDS_REG_CSR_REG,       0x00003073) \
+    X(MNEM_CSRRWI,  "csrrwi",   FMT_I,  OPERANDS_REG_CSR_NUM,       0x00005073) \
+    X(MNEM_CSRRSI,  "csrrsi",   FMT_I,  OPERANDS_REG_CSR_NUM,       0x00006073) \
+    X(MNEM_CSRRCI,  "csrrci",   FMT_I,  OPERANDS_REG_CSR_NUM,       0x00007073)
 
 #define INST_LIST_RV32C \
-    X(MNEM_C_NOP,      "c.nop",                FMT_NONE,        0x0001) \
-    X(MNEM_C_ADDI,     "c.addi",               FMT_REG_NUM,     0x0001) \
-    X(MNEM_C_JAL,      "c.jal",                FMT_OFFSET,      0x2001) \
-    X(MNEM_C_LI,       "c.li",                 FMT_REG_NUM,     0x4001) \
-    X(MNEM_C_ADDI16SP, "c.addi16sp",           FMT_NUM,         0x6101) \
-    X(MNEM_C_LUI,      "c.lui",                FMT_REG_NUM,     0x6001) \
-    X(MNEM_C_SRLI,     "c.srli",               FMT_REG_NUM,     0x8001) \
-    X(MNEM_C_SRAI,     "c.srai",               FMT_REG_NUM,     0x8401) \
-    X(MNEM_C_ANDI,     "c.andi",               FMT_REG_NUM,     0x8801) \
-    X(MNEM_C_SUB,      "c.sub",                FMT_REG_NUM,     0x8c01) \
-    X(MNEM_C_XOR,      "c.xor",                FMT_REG_NUM,     0x8c21) \
-    X(MNEM_C_OR,       "c.or",                 FMT_REG_REG,     0x8c41) \
-    X(MNEM_C_AND,      "c.and",                FMT_REG_REG,     0x8c61) \
-    X(MNEM_C_J,        "c.j",                  FMT_OFFSET,      0xa001) \
-    X(MNEM_C_BEQZ,     "c.beqz",               FMT_REG_NUM,     0xc001) \
-    X(MNEM_C_BNEZ,     "c.bnez",               FMT_REG_NUM,     0xe001) \
-    X(MNEM_C_ADDI4SPN, "c.addi4spn",           FMT_REG_NUM,     0x0000) \
-    X(MNEM_C_FLD,      "c.fld",                FMT_REG_REG_NUM, 0x2000) \
-    X(MNEM_C_LW,       "c.lw",                 FMT_REG_REG_NUM, 0x4000) \
-    X(MNEM_C_FLW,      "c.flw",                FMT_REG_REG_NUM, 0x6000) \
-    X(MNEM_C_FSD,      "c.fsd",                FMT_REG_REG_NUM, 0xa000) \
-    X(MNEM_C_SW,       "c.sw",                 FMT_REG_REG_NUM, 0xc000) \
-    X(MNEM_C_FSW,      "c.fsw",                FMT_REG_REG_NUM, 0xe000) \
-    X(MNEM_C_SLLI,     "c.slli",               FMT_REG_NUM,     0x0002) \
-    X(MNEM_C_FLDSP,    "c.fldsp",              FMT_REG_NUM,     0x2002) \
-    X(MNEM_C_LWSP,     "c.lwsp",               FMT_REG_NUM,     0x3002) \
-    X(MNEM_C_FLWSP,    "c.flwsp",              FMT_REG_NUM,     0x6002) \
-    X(MNEM_C_JR,       "c.jr",                 FMT_REG,         0x8002) \
-    X(MNEM_C_MV,       "c.mv",                 FMT_REG_REG,     0x8002) \
-    X(MNEM_C_EBREAK,   "c.ebreak",             FMT_NONE,        0x9002) \
-    X(MNEM_C_JALR,     "c.jalr",               FMT_REG,         0x9002) \
-    X(MNEM_C_ADD,      "c.add",                FMT_REG_REG,     0x9002) \
-    X(MNEM_C_FSDSP,    "c.fsdsp",              FMT_REG_NUM,     0xa002) \
-    X(MNEM_C_SWSP,     "c.swsp",               FMT_REG_NUM,     0xc002) \
-    X(MNEM_C_FSWSP,    "c.fswsp",              FMT_REG_NUM,     0xe002)
+    X(MNEM_C_NOP,       "c.nop",        FMT_CI,     OPERANDS_NONE,          0x0001) \
+    X(MNEM_C_ADDI,      "c.addi",       FMT_CI,     OPERANDS_REG_NUM,       0x0001) \
+    X(MNEM_C_JAL,       "c.jal",        FMT_CJ,     OPERANDS_OFFSET,        0x2001) \
+    X(MNEM_C_LI,        "c.li",         FMT_CI,     OPERANDS_REG_NUM,       0x4001) \
+    X(MNEM_C_ADDI16SP,  "c.addi16sp",   FMT_CI,     OPERANDS_NUM,           0x6101) \
+    X(MNEM_C_LUI,       "c.lui",        FMT_CI,     OPERANDS_REG_NUM,       0x6001) \
+    X(MNEM_C_SRLI,      "c.srli",       FMT_CI,     OPERANDS_REG_NUM,       0x8001) \
+    X(MNEM_C_SRAI,      "c.srai",       FMT_CI,     OPERANDS_REG_NUM,       0x8401) \
+    X(MNEM_C_ANDI,      "c.andi",       FMT_CI,     OPERANDS_REG_NUM,       0x8801) \
+    X(MNEM_C_SUB,       "c.sub",        FMT_CR,     OPERANDS_REG_NUM,       0x8c01) \
+    X(MNEM_C_XOR,       "c.xor",        FMT_CR,     OPERANDS_REG_NUM,       0x8c21) \
+    X(MNEM_C_OR,        "c.or",         FMT_CR,     OPERANDS_REG_REG,       0x8c41) \
+    X(MNEM_C_AND,       "c.and",        FMT_CR,     OPERANDS_REG_REG,       0x8c61) \
+    X(MNEM_C_J,         "c.j",          FMT_CJ,     OPERANDS_OFFSET,        0xa001) \
+    X(MNEM_C_BEQZ,      "c.beqz",       FMT_CB,     OPERANDS_REG_NUM,       0xc001) \
+    X(MNEM_C_BNEZ,      "c.bnez",       FMT_CB,     OPERANDS_REG_NUM,       0xe001) \
+    X(MNEM_C_ADDI4SPN,  "c.addi4spn",   FMT_CIW,    OPERANDS_REG_NUM,       0x0000) \
+    X(MNEM_C_FLD,       "c.fld",        FMT_CL,     OPERANDS_REG_REG_NUM,   0x2000) \
+    X(MNEM_C_LW,        "c.lw",         FMT_CL,     OPERANDS_REG_REG_NUM,   0x4000) \
+    X(MNEM_C_FLW,       "c.flw",        FMT_CL,     OPERANDS_REG_REG_NUM,   0x6000) \
+    X(MNEM_C_FSD,       "c.fsd",        FMT_CL,     OPERANDS_REG_REG_NUM,   0xa000) \
+    X(MNEM_C_SW,        "c.sw",         FMT_CL,     OPERANDS_REG_REG_NUM,   0xc000) \
+    X(MNEM_C_FSW,       "c.fsw",        FMT_CL,     OPERANDS_REG_REG_NUM,   0xe000) \
+    X(MNEM_C_SLLI,      "c.slli",       FMT_CI,     OPERANDS_REG_NUM,       0x0002) \
+    X(MNEM_C_FLDSP,     "c.fldsp",      FMT_CI,     OPERANDS_REG_NUM,       0x2002) \
+    X(MNEM_C_LWSP,      "c.lwsp",       FMT_CSS,    OPERANDS_REG_NUM,       0x3002) \
+    X(MNEM_C_FLWSP,     "c.flwsp",      FMT_CSS,    OPERANDS_REG_NUM,       0x6002) \
+    X(MNEM_C_JR,        "c.jr",         FMT_CSS,    OPERANDS_REG,           0x8002) \
+    X(MNEM_C_MV,        "c.mv",         FMT_CR,     OPERANDS_REG_REG,       0x8002) \
+    X(MNEM_C_EBREAK,    "c.ebreak",     FMT_CI,     OPERANDS_NONE,          0x9002) \
+    X(MNEM_C_JALR,      "c.jalr",       FMT_CJ,     OPERANDS_REG,           0x9002) \
+    X(MNEM_C_ADD,       "c.add",        FMT_CR,     OPERANDS_REG_REG,       0x9002) \
+    X(MNEM_C_FSDSP,     "c.fsdsp",      FMT_CSS,    OPERANDS_REG_NUM,       0xa002) \
+    X(MNEM_C_SWSP,      "c.swsp",       FMT_CSS,    OPERANDS_REG_NUM,       0xc002) \
+    X(MNEM_C_FSWSP,     "c.fswsp",      FMT_CSS,    OPERANDS_REG_NUM,       0xe002)
 
 #define INST_LIST \
     INST_LIST_RV32I \
     INST_LIST_RV32C
 
 typedef enum {
-#define X(MNEM, STR, FMT, OPCODE) MNEM,
+#define X(MNEM, STR, FMT, OPERANDS, OPCODE) MNEM,
     INST_LIST
 #undef X
 } Mnemonic;
 
 const char * mnemonics[] = {
-#define X(MNEM, STR, FMT, OPCODE) STR,
+#define X(MNEM, STR, FMT, OPERANDS, OPCODE) STR,
     INST_LIST
 #undef X
-    "invalid"
 };
 
 const size_t num_mnemonics = NELEM(mnemonics);
 
-uint32_t
-opcodes[] = {
-#define X(MNEM, STR, FMT, OPCODE) OPCODE,
+uint32_t opcodes[] = {
+#define X(MNEM, STR, FMT, OPERANDS, OPCODE) OPCODE,
+    INST_LIST
+#undef X
+};
+
+typedef enum {
+    FMT_B,
+    FMT_I,
+    FMT_J,
+    FMT_R,
+    FMT_S,
+    FMT_U,
+    FMT_CB,
+    FMT_CI,
+    FMT_CIW,
+    FMT_CJ,
+    FMT_CL,
+    FMT_CR,
+    FMT_CSS,
+} Format;
+
+Format format_of_instr[] = {
+#define X(MNEM, STR, FMT, OPERANDS, OPCODE) FMT,
     INST_LIST
 #undef X
 };
 
 // OFFSET: NUMBER or IDENT
 typedef enum {
-    FMT_NONE,
-    FMT_IORW_IORW,              // fence [pred,succ]
-    FMT_REG_OFFSET,             // jal [rd,]offset
-    FMT_REG_NUM,                // auipc rd,imm ; lui rd,imm ; li rd,imm
-    FMT_REG_REG_REG,
-    FMT_REG_REG_OFFSET,
-    FMT_REG_REG_NUM,            // slli rd,rs1,shamt
-    FMT_REG_NUM_REG,
-    FMT_REG_CSR_REG,
-    FMT_REG_CSR_NUM,
-    FMT_REG,
-    FMT_REG_REG,
-    FMT_OFFSET,
-    FMT_NUM,
-    FMT_INVALID
-} Format;
+    OPERANDS_NONE,
+    OPERANDS_IORW_IORW,              // fence [pred,succ]
+    OPERANDS_REG_OFFSET,             // jal [rd,]offset
+    OPERANDS_REG_NUM,                // auipc rd,imm ; lui rd,imm ; li rd,imm
+    OPERANDS_REG_REG_REG,
+    OPERANDS_REG_REG_OFFSET,
+    OPERANDS_REG_REG_NUM,            // slli rd,rs1,shamt
+    OPERANDS_REG_NUM_REG,
+    OPERANDS_REG_CSR_REG,
+    OPERANDS_REG_CSR_NUM,
+    OPERANDS_REG,
+    OPERANDS_REG_REG,
+    OPERANDS_OFFSET,
+    OPERANDS_NUM
+} Operands;
 
-// TODO: maybe just make this an array
-static Format
-format_for_mnemonic(Mnemonic mnemonic)
-{
-    switch (mnemonic) {
-#define X(MNEM, STR, FMT, OPCODE) case MNEM: return FMT;
-        INST_LIST
+uint32_t operands_for_mnemonic[] = {
+#define X(MNEM, STR, FMT, OPERANDS, OPCODE) OPERANDS,
+    INST_LIST
 #undef X
-        default: assert(0);
-    }
-    assert(0);
-    return FMT_INVALID;
-}
+};
 
 static int
 compressed_available()
@@ -336,7 +347,6 @@ cj_fmt_imm(uint32_t imm)
     imm_fmt |= FROM_MASK_TO(imm,  7, 1,  6);
     imm_fmt |= FROM_MASK_TO(imm,  1, 7,  3);
     imm_fmt |= FROM_MASK_TO(imm,  5, 1,  2);
-    //printf("cj: %d -> %d\n", imm, imm_fmt);
     return imm_fmt;
 }
 
@@ -507,15 +517,15 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
         die("error: invalid mnemonic '%s' on line %d\n", tokens[0].s, ln);
     int compressed = strncmp(tokens[0].s, "c.", 2) == 0;
     uint32_t opcode = opcodes[mnemonic];
-    Format fmt = format_for_mnemonic(mnemonic);
+    Operands expected_operands = operands_for_mnemonic[mnemonic];
     uint32_t rd, rs1, rs2, imm, imm_fmt, pred, succ;
 
-    switch (fmt) {
-        case FMT_NONE:
+    switch (expected_operands) {
+        case OPERANDS_NONE:
             expect_n_tokens(num_tokens, 1, ln);
             break;
 
-        case FMT_IORW_IORW:
+        case OPERANDS_IORW_IORW:
             if (num_tokens == 4) {
                 pred = parse_iorw_or_die(tokens[1].s, ln);
                 succ = parse_iorw_or_die(tokens[3].s, ln);
@@ -528,7 +538,7 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             opcode |= (pred << 24) | (succ << 20);
             break;
 
-        case FMT_REG_OFFSET:
+        case OPERANDS_REG_OFFSET:
             imm = 0;
             if (num_tokens == 4) {
                 rd = reg_name_to_bits(tokens[1].s, ln);
@@ -552,8 +562,7 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             opcode |= j_fmt_imm(imm) | (rd << 7);
             break;
 
-        case FMT_REG_NUM:
-            // TODO: confirm rd is correct for compressed
+        case OPERANDS_REG_NUM:
             expect_n_tokens(num_tokens, 4, ln);
             rd  = reg_name_to_bits(tokens[1].s, ln);
             imm = parse_int_or_die(tokens[3].s);
@@ -561,7 +570,7 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             opcode |= imm_fmt | (rd << 7);
             break;
 
-        case FMT_REG_REG_REG:
+        case OPERANDS_REG_REG_REG:
             expect_n_tokens(num_tokens, 6, ln);
             rd  = reg_name_to_bits(tokens[1].s, ln);
             rs1 = reg_name_to_bits(tokens[3].s, ln);
@@ -569,7 +578,7 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             opcode |= (rs2 << 20) | (rs1 << 15) | (rd << 7);
             break;
 
-        case FMT_REG_REG_OFFSET:
+        case OPERANDS_REG_REG_OFFSET:
             expect_n_tokens(num_tokens, 6, ln);
             rs1 = reg_name_to_bits(tokens[1].s, ln);
             rs2 = reg_name_to_bits(tokens[3].s, ln);
@@ -583,7 +592,7 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             opcode |= imm_fmt | (rs2 << 20) | (rs1 << 15);
             break;
 
-        case FMT_REG_REG_NUM:
+        case OPERANDS_REG_REG_NUM:
             // TODO: compressed
             expect_n_tokens(num_tokens, 6, ln);
             rd = reg_name_to_bits(tokens[1].s, ln);
@@ -592,11 +601,11 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             opcode |= (imm << 20) | (rs1 << 15) | (rd << 7);
             break;
 
-        case FMT_REG_NUM_REG:
+        case OPERANDS_REG_NUM_REG:
             expect_n_tokens(num_tokens, 7, ln);
             imm = parse_int_or_die(tokens[3].s);
             rs1 = reg_name_to_bits(tokens[5].s, ln);
-            if (mnemonic == MNEM_SB || mnemonic == MNEM_SH || mnemonic == MNEM_SW) {
+            if (format_of_instr[mnemonic] == FMT_S) {
                 rs2 = reg_name_to_bits(tokens[1].s, ln);
                 imm_fmt = s_fmt_imm(imm);
                 opcode |= imm_fmt | (rs2 << 20) | (rs1 << 15);
@@ -607,15 +616,15 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             }
             break;
 
-        case FMT_REG_CSR_REG:
+        case OPERANDS_REG_CSR_REG:
             /* TODO */
             break;
 
-        case FMT_REG_CSR_NUM:
+        case OPERANDS_REG_CSR_NUM:
             /* TODO */
             break;
 
-        case FMT_OFFSET:
+        case OPERANDS_OFFSET:
             // TODO
             if (tokens[1].t == TOK_NUM)
                 imm = parse_int_or_die(tokens[1].s);
@@ -630,7 +639,7 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             }
             break;
 
-        case FMT_REG_REG:
+        case OPERANDS_REG_REG:
             if (compressed) {
                 // TODO: make sure rd and rs2 are correct
                 rd = reg_name_to_bits(tokens[1].s, ln);
@@ -641,7 +650,7 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             }
             break;
 
-        case FMT_REG:
+        case OPERANDS_REG:
             if (compressed) {
                 rs1 = reg_name_to_bits(tokens[1].s, ln);
                 opcode |= (rs1 << 7);
@@ -1116,7 +1125,7 @@ get_line_of_tokens(TokenizerState * ts, Token * tokens)
 
 /* TODO: separate parsing from outputting */
 static void
-parse(Buffer buffer)
+parse(Buffer input)
 {
     // TODO: should be a dict
     num_symbols = 0;
@@ -1137,7 +1146,7 @@ parse(Buffer buffer)
     Token tokens[MAX_TOKENS_PER_LINE];
     Token expanded_tokens[MAX_PSEUDO_EXPAND][MAX_TOKENS_PER_LINE];
     size_t num_expanded_tokens[MAX_PSEUDO_EXPAND];
-    TokenizerState ts = init_tokenizer(buffer);
+    TokenizerState ts = init_tokenizer(input);
     while (!ts.eof) {
         size_t num_tokens = get_line_of_tokens(&ts, tokens);
         if (num_tokens == 0)
