@@ -21,7 +21,7 @@ int extensions = 0;
 #define OPTION_PIC 2
 #define OPTION_RELAX 4
 int option_stack[32] = { OPTION_RVC };
-int option_sp = 0;
+size_t option_sp = 0;
 
 #define PSEUDO_LIST \
     X(PSEUDO_BEQZ,          "beqz",         FMT_REG_OFFSET      ) \
@@ -224,6 +224,12 @@ format_for_mnemonic(Mnemonic mnemonic)
     }
     assert(0);
     return FMT_INVALID;
+}
+
+static int
+compressed_available()
+{
+    return (extensions & EXT_C) && (option_stack[option_sp] & OPTION_RVC);
 }
 
 /* TODO: decide if this should detect invalid register names */
@@ -432,6 +438,8 @@ static void
 deposit(Buffer * output, size_t addr, size_t size, uint64_t data)
 {
     assert(size <= 8);
+    if (size == 0)
+        return;
     size_t addr_upper = (addr + size - 1) | 3;
     if (addr_upper >= output->cap) {
         output->cap = (addr_upper*2 < 1024) ? 1024 : addr_upper*2;
@@ -632,45 +640,88 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
 }
 
 static size_t
+align_output(Buffer * output, int alignment, size_t curr_addr)
+{
+    assert(alignment >= 2);
+    assert((alignment & (alignment - 1)) == 0); // power of 2
+    // align to 2-byte boundary
+    if (curr_addr & 1)
+        deposit(output, curr_addr++, 1, 0);
+    if (alignment == 2)
+        return curr_addr;
+    // align to 4-byte boundary
+    if (curr_addr % 4 == 2) {
+        deposit(output, curr_addr, 2, 0x0001); // c.nop
+        curr_addr += 2;
+    }
+    assert(curr_addr % 4 == 0);
+    // insert nops until desired alignment is obtained
+    while (curr_addr % alignment != 0) {
+        if (compressed_available()) {
+            deposit(output, curr_addr, 2, 0x0001); // c.nop
+            curr_addr += 2;
+        } else {
+            deposit(output, curr_addr, 4, 0x00000013); // addi x0, x0, 0
+            curr_addr += 4;
+        }
+    }
+    return curr_addr;
+}
+
+static size_t
 parse_directive(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr, int ln)
 {
     assert(tokens[0].t == TOK_DIR);
+    // TODO: allow for lists of numbers
     if (strcmp(tokens[0].s, ".byte") == 0) {
+        expect_n_tokens(num_tokens, 2, ln);
         deposit(output, curr_addr++, 1, parse_int(tokens[1].s));
     } else if (strcmp(tokens[0].s, ".half") == 0) {
+        expect_n_tokens(num_tokens, 2, ln);
         int n = parse_int(tokens[1].s);
         deposit(output, curr_addr, 2, n);
         curr_addr += 2;
     } else if (strcmp(tokens[0].s, ".word") == 0) {
+        expect_n_tokens(num_tokens, 2, ln);
         deposit(output, curr_addr, 4, parse_int(tokens[1].s));
         curr_addr += 4;
     } else if (strcmp(tokens[0].s, ".dword") == 0) {
+        expect_n_tokens(num_tokens, 2, ln);
         int64_t n = strtoll(tokens[1].s, NULL, 0);
         deposit(output, curr_addr, 8, n);
         curr_addr += 8;
     } else if (strcmp(tokens[0].s, ".string") == 0) {
+        expect_n_tokens(num_tokens, 2, ln);
         for (const char * cp = tokens[1].s+1; *cp != '"'; cp++) {
             deposit(output, curr_addr++, 1, *cp);
         }
         deposit(output, curr_addr++, 1, '\0');
     } else if (strcmp(tokens[0].s, ".align") == 0) {
-        // TODO
+        expect_n_tokens(num_tokens, 2, ln);
+        int log2_alignment = parse_int(tokens[1].s);
+        if ((log2_alignment < 1) || (log2_alignment > 20))
+            die("error: invalid alignment %d on line %d\n", log2_alignment, ln);
+        curr_addr = align_output(output, 1 << log2_alignment, curr_addr);
     } else if (strcmp(tokens[0].s, ".globl") == 0) {
+        expect_n_tokens(num_tokens, 2, ln);
         // TODO
     } else if (strcmp(tokens[0].s, ".text") == 0) {
+        expect_n_tokens(num_tokens, 1, ln);
         // TODO
     } else if (strcmp(tokens[0].s, ".data") == 0) {
+        expect_n_tokens(num_tokens, 1, ln);
         // TODO
     } else if (strcmp(tokens[0].s, ".option") == 0) {
+        expect_n_tokens(num_tokens, 2, ln);
         if (strcmp(tokens[1].s, "push") == 0) {
             option_sp++;
             if (option_sp >= NELEM(option_stack))
                 die("error: exceeded max depth of option stack on line %d\n", ln);
             option_stack[option_sp] = option_stack[option_sp-1];
         } else if (strcmp(tokens[1].s, "pop") == 0) {
-            option_sp--;
-            if (option_sp < 0)
+            if (option_sp == 0)
                 die("error: popped option stack too many times on line %d\n", ln);
+            option_sp--;
         } else if (strcmp(tokens[1].s, "rvc") == 0) {
             option_stack[option_sp] |= OPTION_RVC;
         } else if (strcmp(tokens[1].s, "norvc") == 0) {
@@ -1083,7 +1134,7 @@ parse(Buffer buffer)
 
         for (size_t r = 0; r < num_pseudo_expansions; r++) {
             if (expanded_tokens[r][0].t == TOK_MNEM) {
-                if ((extensions & EXT_C) && (option_stack[option_sp] & OPTION_RVC))
+                if (compressed_available())
                     num_expanded_tokens[r] = compress_if_possible(expanded_tokens[r], num_expanded_tokens[r]);
                 curr_addr = parse_instr(expanded_tokens[r], num_expanded_tokens[r], &output, curr_addr, ts.ln);
             } else if (expanded_tokens[r][0].t == TOK_DIR) {
@@ -1106,6 +1157,7 @@ parse(Buffer buffer)
 #endif
 
     for (size_t i = 0; i < (curr_addr+3)/4; i++) {
+        //printf("%02zx: %08x\n", i*4, (int) unpack_le(output.p + i*4, 4));
         printf("%08x\n", (int) unpack_le(output.p + i*4, 4));
     }
 
@@ -1153,7 +1205,7 @@ parse_isa_string(const char * isa)
         die("error: RV64 is not yet supported\n", isa);
     }
     size_t isa_len = strlen(isa);
-    for (int i = 4; i < isa_len; i++) {
+    for (size_t i = 4; i < isa_len; i++) {
         switch (isa[i]) {
             case 'i': break;
             case 'm': extensions |= EXT_M; break;
