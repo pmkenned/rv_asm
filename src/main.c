@@ -9,8 +9,19 @@
 #define MAX_TOKENS_PER_LINE 10
 #define MAX_PSEUDO_EXPAND 3
 
-// TODO: make this a run-time option
-#define EXT_C 0
+// TODO: use these
+#define EXT_M 1
+#define EXT_A 2
+#define EXT_F 4
+#define EXT_D 8
+#define EXT_C 16
+int extensions = 0;
+
+#define OPTION_RVC 1
+#define OPTION_PIC 2
+#define OPTION_RELAX 4
+int option_stack[32] = { OPTION_RVC };
+int option_sp = 0;
 
 #define PSEUDO_LIST \
     X(PSEUDO_BEQZ,          "beqz",         FMT_REG_OFFSET      ) \
@@ -118,7 +129,6 @@ const size_t num_pseudo_mnemonics = NELEM(pseudo_mnemonics);
     X(MNEM_CSRRSI,  "csrrsi",   FMT_REG_CSR_NUM,            0x00006073) \
     X(MNEM_CSRRCI,  "csrrci",   FMT_REG_CSR_NUM,            0x00007073)
 
-#if EXT_C
 #define INST_LIST_RV32C \
     X(MNEM_C_NOP,      "c.nop",                FMT_NONE,        0x0001) \
     X(MNEM_C_ADDI,     "c.addi",               FMT_REG_NUM,     0x0001) \
@@ -155,9 +165,6 @@ const size_t num_pseudo_mnemonics = NELEM(pseudo_mnemonics);
     X(MNEM_C_FSDSP,    "c.fsdsp",              FMT_REG_NUM,     0xa002) \
     X(MNEM_C_SWSP,     "c.swsp",               FMT_REG_NUM,     0xc002) \
     X(MNEM_C_FSWSP,    "c.fswsp",              FMT_REG_NUM,     0xe002)
-#else
-#define INST_LIST_RV32C
-#endif
 
 #define INST_LIST \
     INST_LIST_RV32I \
@@ -654,6 +661,29 @@ parse_directive(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_
         // TODO
     } else if (strcmp(tokens[0].s, ".data") == 0) {
         // TODO
+    } else if (strcmp(tokens[0].s, ".option") == 0) {
+        if (strcmp(tokens[1].s, "push") == 0) {
+            option_sp++;
+            if (option_sp >= NELEM(option_stack))
+                die("error: exceeded max depth of option stack on line %d\n", ln);
+            option_stack[option_sp] = option_stack[option_sp-1];
+        } else if (strcmp(tokens[1].s, "pop") == 0) {
+            option_sp--;
+            if (option_sp < 0)
+                die("error: popped option stack too many times on line %d\n", ln);
+        } else if (strcmp(tokens[1].s, "rvc") == 0) {
+            option_stack[option_sp] |= OPTION_RVC;
+        } else if (strcmp(tokens[1].s, "norvc") == 0) {
+            option_stack[option_sp] &= ~OPTION_RVC;
+        } else if (strcmp(tokens[1].s, "pic") == 0) {
+            option_stack[option_sp] |= OPTION_PIC;
+        } else if (strcmp(tokens[1].s, "nopic") == 0) {
+            option_stack[option_sp] &= ~OPTION_PIC;
+        } else if (strcmp(tokens[1].s, "relax") == 0) {
+            option_stack[option_sp] |= OPTION_RELAX;
+        } else if (strcmp(tokens[1].s, "norelax") == 0) {
+            option_stack[option_sp] &= ~OPTION_RELAX;
+        }
     } else {
         die("unsupported directive %s on line %d\n", tokens[0].s, ln);
     }
@@ -1053,10 +1083,8 @@ parse(Buffer buffer)
 
         for (size_t r = 0; r < num_pseudo_expansions; r++) {
             if (expanded_tokens[r][0].t == TOK_MNEM) {
-                // TODO: only if .option rvc
-#if EXT_C
-                num_expanded_tokens[r] = compress_if_possible(expanded_tokens[r], num_expanded_tokens[r]);
-#endif
+                if ((extensions & EXT_C) && (option_stack[option_sp] & OPTION_RVC))
+                    num_expanded_tokens[r] = compress_if_possible(expanded_tokens[r], num_expanded_tokens[r]);
                 curr_addr = parse_instr(expanded_tokens[r], num_expanded_tokens[r], &output, curr_addr, ts.ln);
             } else if (expanded_tokens[r][0].t == TOK_DIR) {
                 curr_addr = parse_directive(expanded_tokens[r], num_expanded_tokens[r], &output, curr_addr, ts.ln);
@@ -1112,15 +1140,54 @@ strip_comments(char * s, size_t l)
     }
 }
 
+static void
+parse_isa_string(const char * isa)
+{
+    if (strncmp(isa, "rv", 2) != 0) {
+        die("error: unsupported ISA string '%s'\n", isa);
+    }
+    if ((strncmp(isa+2, "32", 2) != 0) && (strncmp(isa+2, "64", 2) != 0)) {
+        die("error: unsupported ISA string '%s'\n", isa);
+    }
+    if (strncmp(isa+2, "64", 2) == 0) {
+        die("error: RV64 is not yet supported\n", isa);
+    }
+    size_t isa_len = strlen(isa);
+    for (int i = 4; i < isa_len; i++) {
+        switch (isa[i]) {
+            case 'i': break;
+            case 'm': extensions |= EXT_M; break;
+            case 'a': extensions |= EXT_A; break;
+            case 'f': extensions |= EXT_F; break;
+            case 'd': extensions |= EXT_D; break;
+            case 'c': extensions |= EXT_C; break;
+            default:
+                die("error: unsupported extension '%c' in isa string '%s'\n", isa[i], isa);
+        }
+    }
+}
+
 int
 main(int argc, char * argv[])
 {
-    if (argc < 2) {
-        fprintf(stderr, "usage: %s [FILE]\n", argv[0]);
-        exit(1);
+    const char * filename = NULL;
+    for (int i = 1; i < argc; i++) {
+        if (strncmp(argv[i], "-march=", 7) == 0) {
+            parse_isa_string(argv[i]+7);
+        } else {
+            // TODO: allow for multiple input files
+            if (filename == NULL)
+                filename = argv[i];
+            else
+                die("error: cannot specify multiple input files\n");
+        }
     }
 
-    Buffer file_contents = read_file(argv[1]);
+    if (filename == NULL) {
+        die("usage: %s [-march=ISA] FILE\n", argv[0]);
+    }
+
+    Buffer file_contents = read_file(filename);
     strip_comments(file_contents.p, file_contents.len);
     parse(file_contents);
     free(file_contents.p);
