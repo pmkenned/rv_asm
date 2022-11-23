@@ -422,12 +422,26 @@ print_refs_and_symbols()
 }
 
 static void
-resolve_refs(uint32_t *  output)
+deposit(Buffer * output, size_t addr, size_t size, uint64_t data)
+{
+    assert(size <= 8);
+    size_t addr_upper = (addr + size - 1) | 3;
+    if (addr_upper >= output->cap) {
+        output->cap = (addr_upper*2 < 1024) ? 1024 : addr_upper*2;
+        output->p = realloc(output->p, output->cap);
+    }
+    if (addr_upper >= output->len) {
+        output->len = addr_upper+1;
+    }
+    memset(output->p + addr, 0, addr_upper - addr + 1);
+    pack_le(output->p + addr, size, data);
+}
+
+static void
+resolve_refs(Buffer * output)
 {
     for (size_t i = 0; i < num_refs; i++) {
-        uint32_t word_idx = refs[i].addr/4;
-        uint32_t opcode = output[word_idx];
-
+        uint32_t opcode = unpack_le(output->p + refs[i].addr, sizeof(uint32_t));
         size_t j = lookup_symbol(refs[i].s);
         if (j == num_symbols)
             die("error: undefined symbol %s on line %d\n", refs[i].s, refs[i].ln);
@@ -445,7 +459,7 @@ resolve_refs(uint32_t *  output)
         } else {
             assert(0);
         }
-        output[word_idx] = opcode;
+        deposit(output, refs[i].addr, 4, opcode);
     }
 }
 
@@ -456,28 +470,8 @@ expect_n_tokens(int num_tokens, int n, int ln)
         die("error: unexpected tokens on line %d\n", ln);
 }
 
-static void
-deposit_byte(uint32_t * output, size_t addr, uint32_t data)
-{
-    uint32_t word = output[addr/4];
-    int i = addr % 4;
-    word &= ~(0xff << i*8);
-    word |= (data & 0xff) << i*8;
-    output[addr/4] = word;
-}
-
-static void
-deposit(uint32_t * output, size_t addr, size_t size, uint64_t data)
-{
-    assert(size <= 8);
-    for (size_t i = 0; i < size; i++, addr++) {
-        deposit_byte(output, addr, data);
-        data >>= 8;
-    }
-}
-
 static size_t
-parse_instr(Token * tokens, size_t num_tokens, uint32_t * output, size_t curr_addr, int ln)
+parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr, int ln)
 {
     Mnemonic mnemonic = str_idx_in_list(tokens[0].s, mnemonics, num_mnemonics);
     if (mnemonic == num_mnemonics)
@@ -623,7 +617,6 @@ parse_instr(Token * tokens, size_t num_tokens, uint32_t * output, size_t curr_ad
             break;
     }
 
-    //assert(curr_addr/4 < NELEM(output));
     size_t opcode_size = compressed ? 2: 4;
     deposit(output, curr_addr, opcode_size, opcode);
     //printf("deposit %08x (%zu) %s\n", opcode, opcode_size, mnemonics[mnemonic]);
@@ -632,11 +625,11 @@ parse_instr(Token * tokens, size_t num_tokens, uint32_t * output, size_t curr_ad
 }
 
 static size_t
-parse_directive(Token * tokens, size_t num_tokens, uint32_t * output, size_t curr_addr, int ln)
+parse_directive(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr, int ln)
 {
     assert(tokens[0].t == TOK_DIR);
     if (strcmp(tokens[0].s, ".byte") == 0) {
-        deposit_byte(output, curr_addr++, parse_int(tokens[1].s));
+        deposit(output, curr_addr++, 1, parse_int(tokens[1].s));
     } else if (strcmp(tokens[0].s, ".half") == 0) {
         int n = parse_int(tokens[1].s);
         deposit(output, curr_addr, 2, n);
@@ -650,9 +643,9 @@ parse_directive(Token * tokens, size_t num_tokens, uint32_t * output, size_t cur
         curr_addr += 8;
     } else if (strcmp(tokens[0].s, ".string") == 0) {
         for (const char * cp = tokens[1].s+1; *cp != '"'; cp++) {
-            deposit_byte(output, curr_addr++, *cp);
+            deposit(output, curr_addr++, 1, *cp);
         }
-        deposit_byte(output, curr_addr++, '\0');
+        deposit(output, curr_addr++, 1, '\0');
     } else if (strcmp(tokens[0].s, ".align") == 0) {
         // TODO
     } else if (strcmp(tokens[0].s, ".globl") == 0) {
@@ -1030,7 +1023,12 @@ parse(Buffer buffer)
     refs_cap = 10;
     refs = malloc(sizeof(*refs)*refs_cap);
 
-    uint32_t output[1024]; // TODO: make this dynamic
+    Buffer output = {
+        .len = 0,
+        .cap = 1024,
+    };
+    output.p = malloc(output.cap);
+
     uint32_t curr_addr = 0;
     Token tokens[MAX_TOKENS_PER_LINE];
     Token expanded_tokens[MAX_PSEUDO_EXPAND][MAX_TOKENS_PER_LINE];
@@ -1059,20 +1057,28 @@ parse(Buffer buffer)
 #if EXT_C
                 num_expanded_tokens[r] = compress_if_possible(expanded_tokens[r], num_expanded_tokens[r]);
 #endif
-                curr_addr = parse_instr(expanded_tokens[r], num_expanded_tokens[r], output, curr_addr, ts.ln);
+                curr_addr = parse_instr(expanded_tokens[r], num_expanded_tokens[r], &output, curr_addr, ts.ln);
             } else if (expanded_tokens[r][0].t == TOK_DIR) {
-                curr_addr = parse_directive(expanded_tokens[r], num_expanded_tokens[r], output, curr_addr, ts.ln);
+                curr_addr = parse_directive(expanded_tokens[r], num_expanded_tokens[r], &output, curr_addr, ts.ln);
             } else {
                 assert(0);
             }
         }
     }
 
-    resolve_refs(output);
+    resolve_refs(&output);
+
+#if 0
+    for (size_t i = 0; i < output.len; i++) {
+        printf("%02x ", (int) unpack_le(output.p + i, 1));
+        if ((i+1) % 16 == 0)
+            printf("\n");
+    }
+    printf("\n");
+#endif
 
     for (size_t i = 0; i < (curr_addr+3)/4; i++) {
-        printf("%08x\n", output[i]);
-        //printf("%02lx: 0x%08x\n", i*4, output[i]);
+        printf("%08x\n", (int) unpack_le(output.p + i*4, 4));
     }
 
     //print_refs_and_symbols();
@@ -1115,7 +1121,7 @@ main(int argc, char * argv[])
     }
 
     Buffer file_contents = read_file(argv[1]);
-    strip_comments(file_contents.p, file_contents.n);
+    strip_comments(file_contents.p, file_contents.len);
     parse(file_contents);
     free(file_contents.p);
 

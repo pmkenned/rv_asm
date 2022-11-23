@@ -186,7 +186,7 @@ common_next_state(char c)
 static TokenType
 next_char(TokenizerState * ts)
 {
-    if (ts->buf_pos >= ts->buffer.n) {
+    if (ts->buf_pos >= ts->buffer.len) {
         ts->tok_begin = 0;
         ts->tok_end = 0;
         return TOK_EOF;
