@@ -529,27 +529,27 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             break;
 
         case FMT_REG_OFFSET:
+            imm = 0;
             if (num_tokens == 4) {
                 rd = reg_name_to_bits(tokens[1].s, ln);
                 if (tokens[3].t == TOK_NUM)
                     imm = parse_int_or_die(tokens[3].s);
+                else if (tokens[3].t == TOK_IDENT)
+                    add_ref(tokens[3].s, REF_J, curr_addr, ln);
+                else
+                    die("error: invalid format for %s instruction on line %d\n", tokens[0].s, ln);
             } else if (num_tokens == 2) {
                 rd = reg_name_to_bits("x1", ln);
                 if (tokens[1].t == TOK_NUM)
                     imm = parse_int_or_die(tokens[1].s);
+                else if (tokens[1].t == TOK_IDENT)
+                    add_ref(tokens[1].s, REF_J, curr_addr, ln);
+                else
+                    die("error: invalid format for %s instruction on line %d\n", tokens[0].s, ln);
             } else {
                 expect_n_tokens(num_tokens, 4, ln);
             }
-
-            if ((num_tokens == 2 && tokens[1].t == TOK_IDENT) ||
-                (num_tokens == 4 && tokens[3].t == TOK_IDENT)) {
-                // TODO: handle num_tokens == 2 case
-                add_ref(tokens[3].s, REF_J, curr_addr, ln);
-                imm = 0; // TODO
-            }
-
-            imm_fmt = j_fmt_imm(imm);
-            opcode |= imm_fmt | (rd << 7);
+            opcode |= j_fmt_imm(imm) | (rd << 7);
             break;
 
         case FMT_REG_NUM:
@@ -596,7 +596,7 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             expect_n_tokens(num_tokens, 7, ln);
             imm = parse_int_or_die(tokens[3].s);
             rs1 = reg_name_to_bits(tokens[5].s, ln);
-            if (mnemonic == MNEM_SW) {
+            if (mnemonic == MNEM_SB || mnemonic == MNEM_SH || mnemonic == MNEM_SW) {
                 rs2 = reg_name_to_bits(tokens[1].s, ln);
                 imm_fmt = s_fmt_imm(imm);
                 opcode |= imm_fmt | (rs2 << 20) | (rs1 << 15);
