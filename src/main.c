@@ -308,6 +308,7 @@ j_fmt_imm(uint32_t imm)
     return imm_fmt << 12;
 }
 
+static uint32_t
 ci_fmt_imm(uint32_t imm)
 {
     uint32_t imm_fmt = 0;
@@ -316,6 +317,7 @@ ci_fmt_imm(uint32_t imm)
     return imm_fmt;
 }
 
+static uint32_t
 cj_fmt_imm(uint32_t imm)
 {
     uint32_t imm_fmt = 0;
@@ -602,6 +604,15 @@ parse_instr(Token * tokens, size_t num_tokens, uint32_t * output, size_t curr_ad
                 rd = reg_name_to_bits(tokens[1].s);
                 rs2 = reg_name_to_bits(tokens[3].s);
                 opcode |= (rd << 7) | (rs2 << 2);
+            } else {
+                assert(0);
+            }
+            break;
+
+        case FMT_REG:
+            if (compressed) {
+                rs1 = reg_name_to_bits(tokens[1].s);
+                opcode |= (rs1 << 7);
             } else {
                 assert(0);
             }
@@ -944,9 +955,21 @@ compress_if_possible(Token * tokens, size_t num_tokens)
         }
     } else if (mnemonic == MNEM_JALR) {
         // jalr     rd, offset(rs1)     ; if rd is omitted, x1
-        // c.jr     rs1
-        // c.jalr   rs1
-        // TODO
+        // c.jr     rs1             when rd=x0 and offset=0
+        // c.jalr   rs1             when rd=x1 and offset=0
+        int offset = parse_int(tokens[3].s);
+        if (offset == 0) {
+            int rd = reg_name_to_bits(tokens[1].s);
+            if (rd == 0) {
+                strcpy(tokens[0].s, "c.jr");
+                tokens[1] = tokens[5];
+                num_tokens -= 5;
+            } else if (rd == 1) {
+                strcpy(tokens[0].s, "c.jalr");
+                tokens[1] = tokens[5];
+                num_tokens -= 5;
+            }
+        }
     } else if (mnemonic == MNEM_LUI) {
         // lui      rd, imm
         // c.lui    rd, imm
