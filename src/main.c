@@ -82,7 +82,7 @@ const size_t num_pseudo_mnemonics = NELEM(pseudo_mnemonics);
 #define INST_LIST_RV32I \
     X(MNEM_LUI,     "lui",      FMT_REG_NUM,                0x00000037) \
     X(MNEM_AUIPC,   "auipc",    FMT_REG_NUM,                0x00000017) \
-    X(MNEM_JAL,     "jal",      FMT_REG_OFFSET_OR_OFFSET,   0x0000006f) \
+    X(MNEM_JAL,     "jal",      FMT_REG_OFFSET,             0x0000006f) \
     X(MNEM_JALR,    "jalr",     FMT_REG_NUM_REG,            0x00000067) \
     X(MNEM_BEQ,     "beq",      FMT_REG_REG_OFFSET,         0x00000063) \
     X(MNEM_BNE,     "bne",      FMT_REG_REG_OFFSET,         0x00001063) \
@@ -117,7 +117,7 @@ const size_t num_pseudo_mnemonics = NELEM(pseudo_mnemonics);
     X(MNEM_SRA,     "sra",      FMT_REG_REG_REG,            0x40005033) \
     X(MNEM_OR,      "or",       FMT_REG_REG_REG,            0x00006033) \
     X(MNEM_AND,     "and",      FMT_REG_REG_REG,            0x00007033) \
-    X(MNEM_FENCE,   "fence",    FMT_NONE_OR_IORW,           0x0000000f) \
+    X(MNEM_FENCE,   "fence",    FMT_IORW_IORW,              0x0000000f) \
     X(MNEM_FENCE_I, "fence.i",  FMT_NONE,                   0x0000100f) \
     X(MNEM_ECALL,   "ecall",    FMT_NONE,                   0x00000073) \
     X(MNEM_EBREAK,  "ebreak",   FMT_NONE,                   0x00100073) \
@@ -194,8 +194,8 @@ opcodes[] = {
 // OFFSET: NUMBER or IDENT
 typedef enum {
     FMT_NONE,
-    FMT_NONE_OR_IORW,           // fence [pred,succ]
-    FMT_REG_OFFSET_OR_OFFSET,   // jal [rd,]offset
+    FMT_IORW_IORW,              // fence [pred,succ]
+    FMT_REG_OFFSET,             // jal [rd,]offset
     FMT_REG_NUM,                // auipc rd,imm ; lui rd,imm ; li rd,imm
     FMT_REG_REG_REG,
     FMT_REG_REG_OFFSET,
@@ -476,7 +476,27 @@ static void
 expect_n_tokens(int num_tokens, int n, int ln)
 {
     if (num_tokens != n)
-        die("error: unexpected tokens on line %d\n", ln);
+        die("error: expected %d tokens on line %d, saw %d\n", n, ln, num_tokens);
+}
+
+static int
+parse_iorw_or_die(const char * s, int ln)
+{
+    int iorw = 0;
+    char c;
+    while ((c = *s++)) {
+        if (c == 'i')
+            iorw |= 8;
+        else if (c == 'o')
+            iorw |= 4;
+        else if (c == 'r')
+            iorw |= 2;
+        else if (c == 'w')
+            iorw |= 1;
+        else
+            die("error: invalid pred/succ on line %d\n", ln);
+    }
+    return iorw;
 }
 
 static size_t
@@ -488,18 +508,27 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
     int compressed = strncmp(tokens[0].s, "c.", 2) == 0;
     uint32_t opcode = opcodes[mnemonic];
     Format fmt = format_for_mnemonic(mnemonic);
-    uint32_t rd, rs1, rs2, imm, imm_fmt;
+    uint32_t rd, rs1, rs2, imm, imm_fmt, pred, succ;
 
     switch (fmt) {
         case FMT_NONE:
             expect_n_tokens(num_tokens, 1, ln);
             break;
 
-        case FMT_NONE_OR_IORW:
-            /* TODO */
+        case FMT_IORW_IORW:
+            if (num_tokens == 4) {
+                pred = parse_iorw_or_die(tokens[1].s, ln);
+                succ = parse_iorw_or_die(tokens[3].s, ln);
+            } else if (num_tokens == 1) {
+                pred = 15;
+                succ = 15;
+            } else {
+                expect_n_tokens(num_tokens, 4, ln);
+            }
+            opcode |= (pred << 24) | (succ << 20);
             break;
 
-        case FMT_REG_OFFSET_OR_OFFSET:
+        case FMT_REG_OFFSET:
             if (num_tokens == 4) {
                 rd = reg_name_to_bits(tokens[1].s, ln);
                 if (tokens[3].t == TOK_NUM)
