@@ -270,36 +270,37 @@ error:
     return 0;
 }
 
-/* TODO: create a macro for the common operation here */
+#define FROM_MASK_TO(N, FROM, MASK, TO) (((imm >> (FROM)) & (MASK)) << (TO))
+
 static uint32_t
 b_fmt_imm(uint32_t imm)
 {
     uint32_t imm_fmt = 0;
-    imm_fmt |= ((imm >> 12) & 1) << 31;
-    imm_fmt |= ((imm >> 5) & 0x3f) << 25;
-    imm_fmt |= ((imm >> 1) & 0xf) << 8;
-    imm_fmt |= ((imm >> 11) & 0x1) << 7;
+    imm_fmt |= FROM_MASK_TO(imm, 12,    1, 31);
+    imm_fmt |= FROM_MASK_TO(imm,  5, 0x3f, 25);
+    imm_fmt |= FROM_MASK_TO(imm,  1,  0xf,  8);
+    imm_fmt |= FROM_MASK_TO(imm, 11,  0x1,  7);
     return imm_fmt;
 }
 
 static uint32_t
 i_fmt_imm(uint32_t imm)
 {
-    return (imm & 0xfff) << 20;
+    return FROM_MASK_TO(imm, 0, 0xfff, 20);
 }
 
 static uint32_t
 u_fmt_imm(uint32_t imm)
 {
-    return (imm & 0xfffff) << 12;
+    return FROM_MASK_TO(imm, 0, 0xfffff, 12);
 }
 
 static uint32_t
 s_fmt_imm(uint32_t imm)
 {
     uint32_t imm_fmt = 0;
-    imm_fmt |= ((imm >> 5) & 0x7f) << 25;
-    imm_fmt |= (imm & 0x1f) << 7;
+    imm_fmt |= FROM_MASK_TO(imm, 5, 0x7f, 25);
+    imm_fmt |= FROM_MASK_TO(imm, 0, 0x1f,  7);
     return imm_fmt;
 }
 
@@ -307,10 +308,10 @@ static uint32_t
 j_fmt_imm(uint32_t imm)
 {
     uint32_t imm_fmt = 0;
-    imm_fmt |= ((imm >> 20) & 1) << 19;
-    imm_fmt |= ((imm >> 1) & 0x3ff) << 9;
-    imm_fmt |= ((imm >> 11) & 1) << 8;
-    imm_fmt |= ((imm >> 12) & 0xff);
+    imm_fmt |= FROM_MASK_TO(imm, 20,     1, 19);
+    imm_fmt |= FROM_MASK_TO(imm,  1, 0x3ff,  9);
+    imm_fmt |= FROM_MASK_TO(imm, 11,     1,  8);
+    imm_fmt |= FROM_MASK_TO(imm, 12,  0xff,  0);
     return imm_fmt << 12;
 }
 
@@ -318,8 +319,8 @@ static uint32_t
 ci_fmt_imm(uint32_t imm)
 {
     uint32_t imm_fmt = 0;
-    imm_fmt |= ((imm >> 5) & 1) << 12;
-    imm_fmt |= ((imm >> 0) & 0x1f) << 2;
+    imm_fmt |= FROM_MASK_TO(imm, 5,    1, 12);
+    imm_fmt |= FROM_MASK_TO(imm, 0, 0x1f,  2);
     return imm_fmt;
 }
 
@@ -327,14 +328,14 @@ static uint32_t
 cj_fmt_imm(uint32_t imm)
 {
     uint32_t imm_fmt = 0;
-    imm_fmt |= ((imm >> 11) & 1) << 12;
-    imm_fmt |= ((imm >> 4) & 1) << 11;
-    imm_fmt |= ((imm >> 8) & 3) << 9;
-    imm_fmt |= ((imm >> 10) & 1) << 8;
-    imm_fmt |= ((imm >> 6) & 1) << 7;
-    imm_fmt |= ((imm >> 7) & 1) << 6;
-    imm_fmt |= ((imm >> 1) & 7) << 3;
-    imm_fmt |= ((imm >> 5) & 1) << 2;
+    imm_fmt |= FROM_MASK_TO(imm, 11, 1, 12);
+    imm_fmt |= FROM_MASK_TO(imm,  4, 1, 11);
+    imm_fmt |= FROM_MASK_TO(imm,  8, 3,  9);
+    imm_fmt |= FROM_MASK_TO(imm, 10, 1,  8);
+    imm_fmt |= FROM_MASK_TO(imm,  6, 1,  7);
+    imm_fmt |= FROM_MASK_TO(imm,  7, 1,  6);
+    imm_fmt |= FROM_MASK_TO(imm,  1, 7,  3);
+    imm_fmt |= FROM_MASK_TO(imm,  5, 1,  2);
     //printf("cj: %d -> %d\n", imm, imm_fmt);
     return imm_fmt;
 }
