@@ -617,46 +617,50 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             break;
 
         case OPERANDS_REG_CSR_REG:
+            expect_n_tokens(num_tokens, 6, ln);
             /* TODO */
             break;
 
         case OPERANDS_REG_CSR_NUM:
+            expect_n_tokens(num_tokens, 6, ln);
             /* TODO */
             break;
 
         case OPERANDS_OFFSET:
-            // TODO
+            expect_n_tokens(num_tokens, 2, ln);
+            imm = 0;
             if (tokens[1].t == TOK_NUM)
                 imm = parse_int_or_die(tokens[1].s);
-            else {
+            else
                 add_ref(tokens[1].s, REF_CJ, curr_addr, ln);
-                imm = 0;
-            }
-            if (compressed) {
-                opcode |= cj_fmt_imm(imm);
-            } else {
-                assert(0);
-            }
+            assert(compressed);
+            opcode |= cj_fmt_imm(imm);
             break;
 
+        // c.add, c.and, c.or, c.mv
         case OPERANDS_REG_REG:
-            if (compressed) {
-                // TODO: make sure rd and rs2 are correct
-                rd = reg_name_to_bits(tokens[1].s, ln);
-                rs2 = reg_name_to_bits(tokens[3].s, ln);
-                opcode |= (rd << 7) | (rs2 << 2);
-            } else {
-                assert(0);
+            expect_n_tokens(num_tokens, 4, ln);
+            assert(compressed);
+            // TODO: make sure rd and rs2 are correct
+            rd = reg_name_to_bits(tokens[1].s, ln);
+            rs2 = reg_name_to_bits(tokens[3].s, ln);
+            if (mnemonic == MNEM_C_ADD) {
+                if ((rd == 0) || (rs2 == 0))
+                    die("error: rd and rs2 must not be 0 for %s instruction on line %d\n", tokens[0].s, ln);
+            } else if (mnemonic == MNEM_C_MV) {
+                if (rs2 == 0)
+                    die("error: rs2 must not be 0 for %s instruction on line %d\n", tokens[0].s, ln);
+            } else if ((mnemonic == MNEM_C_AND) || (mnemonic == MNEM_C_OR)) {
+                // TODO: check register ranges
             }
+            opcode |= (rd << 7) | (rs2 << 2);
             break;
 
         case OPERANDS_REG:
-            if (compressed) {
-                rs1 = reg_name_to_bits(tokens[1].s, ln);
-                opcode |= (rs1 << 7);
-            } else {
-                assert(0);
-            }
+            expect_n_tokens(num_tokens, 2, ln);
+            assert(compressed);
+            rs1 = reg_name_to_bits(tokens[1].s, ln);
+            opcode |= (rs1 << 7);
             break;
 
         default:

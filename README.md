@@ -23,6 +23,8 @@ RISC-V Assembler
 - %hi, %lo?
 - lists for .byte, .half, etc.
 - handle upper and lower case
+- check ranges of immediate values
+- support CSR instructions
 
 ### RV32I and RV64I:
 ```
