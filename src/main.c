@@ -418,7 +418,7 @@ add_symbol(const char * s, uint32_t addr, int ln)
 {
     size_t idx = lookup_symbol(s);
     if (idx < num_symbols)
-        die("error on line %d: symbol '%s' already defined on line %d\n", ln, s, symbols[idx].ln);
+        die("error: symbol '%s' defined on line %d already defined on line %d\n", s, ln, symbols[idx].ln);
     symbols[num_symbols].s = strdup(s);
     symbols[num_symbols].addr = addr;
     symbols[num_symbols].ln = ln;
@@ -539,6 +539,8 @@ tokens_match(Token * tokens, size_t num_tokens, const char * fmt)
                 return false;
         }
     }
+    if (ti < num_tokens)
+        return false;
     return true;
 }
 
@@ -612,7 +614,7 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
 
     switch (expected_operands) {
         case OPERANDS_NONE:
-            tokens_match_or_die(tokens, num_tokens, "", ln);
+            tokens_match_or_die(tokens, num_tokens, "m", ln);
             break;
 
         case OPERANDS_IORW_IORW:
@@ -783,7 +785,7 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             break;
 
         default:
-            die("don't know how to parse %s on line %d\n", tokens[0].s, ln);
+            die("error: don't know how to parse %s on line %d\n", tokens[0].s, ln);
             assert(0);
             break;
     }
@@ -825,30 +827,42 @@ align_output(Buffer * output, int alignment, size_t curr_addr)
 }
 
 static size_t
+handle_data_directive(size_t nbytes, Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr, int ln)
+{
+    //tokens_match_or_die(tokens, num_tokens, "d n", ln);
+    if (num_tokens % 2 != 0) {
+        die("error: parse error on line %d\n", ln);
+    }
+    for (size_t i = 0; i < num_tokens; i++) {
+        if (i == 0) {
+        } else if (i % 2 == 1) {
+            int n = parse_int_or_die(tokens[i].s, ln);
+            // TODO: bounds check
+            // TODO: confirm nbytes == 8 case
+            deposit(output, curr_addr, nbytes, n);
+            curr_addr += nbytes;
+        } else if (i % 2 == 0) {
+            if (tokens[i].t != ',')
+                die("error: parse error on line %d\n", ln);
+        }
+    }
+    return curr_addr;
+}
+
+static size_t
 parse_directive(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr, int ln)
 {
     assert(tokens[0].t == TOK_DIR);
     // TODO: allow for lists of numbers
     // TODO: bounds checks
     if (strcmp(tokens[0].s, ".byte") == 0) {
-        tokens_match_or_die(tokens, num_tokens, "d n", ln);
-        int n = parse_int_or_die(tokens[1].s, ln);
-        deposit(output, curr_addr++, 1, n);
+        curr_addr = handle_data_directive(1, tokens, num_tokens, output, curr_addr, ln);
     } else if (strcmp(tokens[0].s, ".half") == 0) {
-        tokens_match_or_die(tokens, num_tokens, "d n", ln);
-        int n = parse_int_or_die(tokens[1].s, ln);
-        deposit(output, curr_addr, 2, n);
-        curr_addr += 2;
+        curr_addr = handle_data_directive(2, tokens, num_tokens, output, curr_addr, ln);
     } else if (strcmp(tokens[0].s, ".word") == 0) {
-        tokens_match_or_die(tokens, num_tokens, "d n", ln);
-        int n = parse_int_or_die(tokens[1].s, ln);
-        deposit(output, curr_addr, 4, n);
-        curr_addr += 4;
+        curr_addr = handle_data_directive(4, tokens, num_tokens, output, curr_addr, ln);
     } else if (strcmp(tokens[0].s, ".dword") == 0) {
-        tokens_match_or_die(tokens, num_tokens, "d n", ln);
-        int64_t n = strtoll(tokens[1].s, NULL, 0);
-        deposit(output, curr_addr, 8, n);
-        curr_addr += 8;
+        curr_addr = handle_data_directive(8, tokens, num_tokens, output, curr_addr, ln);
     } else if (strcmp(tokens[0].s, ".string") == 0) {
         tokens_match_or_die(tokens, num_tokens, "d s", ln);
         for (const char * cp = tokens[1].s+1; *cp != '"'; cp++) {
@@ -895,7 +909,7 @@ parse_directive(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_
             option_stack[option_sp] &= ~OPTION_RELAX;
         }
     } else {
-        die("unsupported directive %s on line %d\n", tokens[0].s, ln);
+        die("error: unsupported directive %s on line %d\n", tokens[0].s, ln);
     }
     return curr_addr;
 }
@@ -1080,7 +1094,7 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
             // csrrs rd, timeh, x0
             assert(0); // TODO
         default:
-            die("unsupported pseudoinstruction '%s' on line %d\n", tokens[0].s, ln);
+            die("error: unsupported pseudoinstruction '%s' on line %d\n", tokens[0].s, ln);
     }
     return 0;
 }
@@ -1259,7 +1273,7 @@ get_line_of_tokens(TokenizerState * ts, Token * tokens)
 }
 
 /* TODO: separate parsing from outputting */
-static void
+static Buffer
 parse(Buffer input)
 {
     // TODO: should be a dict
@@ -1313,35 +1327,6 @@ parse(Buffer input)
     }
 
     resolve_refs(&output);
-
-#if 0
-    for (size_t i = 0; i < output.len; i++) {
-        printf("%02x ", (int) unpack_le(output.p + i, 1));
-        if ((i+1) % 16 == 0)
-            printf("\n");
-    }
-    printf("\n");
-#endif
-
-#if 0
-    for (size_t i = 0; i < (curr_addr+3)/4; i++) {
-        //printf("%02zx: %08x\n", i*4, (int) unpack_le(output.p + i*4, 4));
-        printf("%08x\n", (int) unpack_le(output.p + i*4, 4));
-    }
-#else
-    for (size_t i = 0; i < (curr_addr+1)/2; i++) {
-        int b2 = (int) unpack_le(output.p + i*2, 2);
-        bool compressed = (b2 & 3) != 3;
-        if (compressed) {
-            printf("%04x\n", b2);
-        } else {
-            int b4 = (int) unpack_le(output.p + i*2, 4);
-            printf("%08x\n", b4);
-            i++;
-        }
-    }
-#endif
-
     //print_refs_and_symbols();
 
     for(size_t i = 0; i < num_symbols; i++)
@@ -1350,6 +1335,45 @@ parse(Buffer input)
     for(size_t i = 0; i < num_refs; i++)
         free(refs[i].s);
     free(refs);
+
+    return output;
+}
+
+static void
+print_output(FILE * fp, Buffer output)
+{
+#if 0
+    for (size_t i = 0; i < output.len; i++) {
+        if (i % 16 == 0) {
+            if (i != 0)
+                fprintf(fp, "\n");
+            fprintf(fp, "%02zx: ", i);
+        }
+        fprintf(fp, "%02x ", (int) unpack_le(output.p + i, 1));
+        //if ((i+1) % 16 == 0)
+        //    fprintf(fp, "\n");
+    }
+    fprintf(fp, "\n");
+#endif
+
+#if 0
+    for (size_t i = 0; i < output.len/4; i++) {
+        //fprintf(fp, "%02zx: %08x\n", i*4, (int) unpack_le(output.p + i*4, 4));
+        fprintf(fp, "%08x\n", (int) unpack_le(output.p + i*4, 4));
+    }
+#else
+    for (size_t i = 0; i < output.len/2; i++) {
+        int b2 = (int) unpack_le(output.p + i*2, 2);
+        bool compressed = (b2 & 3) != 3;
+        if ((extensions & EXT_C) && compressed) {
+            fprintf(fp, "%04x\n", b2);
+        } else {
+            int b4 = (int) unpack_le(output.p + i*2, 4);
+            fprintf(fp, "%08x\n", b4);
+            i++;
+        }
+    }
+#endif
 }
 
 static void
@@ -1373,6 +1397,9 @@ strip_comments(char * s, size_t l)
     }
 }
 
+// TODO: enforce canonical order (imafdc)
+// TODO: enforce d requires f
+// TODO: parse _ (e.g. _zicsr_zifencei, etc.)
 static void
 parse_isa_string(const char * isa)
 {
@@ -1434,8 +1461,10 @@ main(int argc, char * argv[])
 
     Buffer file_contents = read_file(filename);
     strip_comments(file_contents.p, file_contents.len);
-    parse(file_contents);
+    Buffer output = parse(file_contents);
+    print_output(stdout, output);
     free(file_contents.p);
+    free(output.p);
 
     return 0;
 }
