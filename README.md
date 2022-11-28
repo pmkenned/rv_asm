@@ -26,6 +26,18 @@ RISC-V Assembler
 - check ranges of immediate values
 - support CSR instructions
 
+### Compressed registers
+- x1
+- x2
+- x8
+- x9
+- x10
+- x11
+- x12
+- x13
+- x14
+- x15
+
 ### RV32I and RV64I:
 ```
 add         rd, rs1, rs2
@@ -361,56 +373,87 @@ c.bnez rs1', offset
     bne rs1, x0, offset where rs1=8+rs1'
 c.ebreak
     ebreak
-c.j
-c.jalr
-c.jr
-c.li
-c.lui
-c.lw
-c.lwsp
-c.mv
-c.or
-c.slli
-c.srai
-c.srli
-c.sub
-c.sw
-c.swsp
-c.xor
+c.j offset
+    jal x0, offset
+c.jalr  rs1
+    jalr x1, 0(rs1); invalid when rs1=x0
+c.jr    rs1
+    jalr x0, 0(rs1); invalid when rs1=x0
+c.li    rd, imm
+    addi rd, x0, imm
+c.lui   rd, imm
+    lui rd, imm; invalid when rd=x2 or imm=0
+c.lw    rd', uimm(rs1')
+    lw rd, uimm(rs1) where rd=8+rd' and rs1=8+rs1'
+c.lwsp  rd, uimm(x2)
+    lw rd, uimm(x2); invalid when rd=x0
+c.mv    rd, rs2
+    add rd, x0, rs2; invalid when rs2=x0
+c.or    rd', rs2'
+    or rd, rd, rs2 where rd=8+rd' and rs2=8+rs2'
+c.slli  rd, uimm
+    slli rd, rd, uimm
+c.srai  rd', uimm
+    srai rd, rd, uimm where rd=8+rd'
+c.srli  rd', uimm
+    srli rd, rd, uimm where rd=8+rd'
+c.sub   rd', rs2'
+    sub rd, rd, rs2 where rd=8+rd' and rs2=8+rs2'
+c.sw    rs2', uimm(rs1')
+    sw rs2, uimm(rs1) where rs2=8+rs2' and rs1=8+rs1'
+c.swsp rs2, uimm(x2)
+    sw rs2, uimm(x2)
+c.xor   rd', rs2'
+    xor rd, rd, rs2 where rd=8+rd' and rs2=8+rs2'
 ```
 
 ### RV32IC only:
 ```
-c.jal
+c.jal   offset
+    jal x1, offset
 ```
 
 ### RV64IC only
 ```
 c.addiw     rd, imm
     addiw rd, rd, imm; invalid when rd=x0
-c.addw
-c.ld
-c.ldsp
-c.sd
-c.sdsp
-c.slli64
-c.subw
+c.addw  rd', rs2'
+    addw rd, rd, rs2 where rd=8+rd' and rs2=8+rs2'
+c.ld    rd', uimm(rs1')
+    ld rd, uimm(rs1) where rd=8+rd' and rd1=8+rs1'
+c.ldsp  rd, uimm(x2)
+    ld rd, uimm(x2); invalid when rd=x0
+c.sd    rs2', uimm(rs1')
+    sd rs2, uimm(rs1) where rs2=8+rs2' and rs1=8+rs1'
+c.sdsp  rs2, uimm(x2)
+    sd rs2, uimm(x2)
+c.slli64 # see https://github.com/riscv-software-src/riscv-isa-sim/issues/286
+c.subw    rd', rs2'
+    subw rd, rd, rs2 where rd=8+rd' and rs2=8+rs2'
 ```
 
 ### RV32DC and RV64DC:
 ```
-c.fld
-c.fldsp
-c.fsd
-c.fsdsp
+c.fld   rd', uimm(rs1')
+    fld rd, uimm(rs1) where rd=8+rd' and rs1=8+rs1'
+c.fldsp rd', uimm(x2)
+    fld rd, uimm(x2)
+c.fsd   rd', uimm(rs1')
+    fsd rs2, uimm(rs1) where rs2=8+rs2' and rs1=8+rs1'
+c.fsdsp rd', uimm(x2)
+    fsd rs2, uimm(x2)
 ```
 
 ### RV32FC only:
 ```
-c.flw
-c.flwsp
-c.fsw
-c.fswsp
+c.flw   rd', uimm(rs1')
+    flw rd, uimm(rs1)  where rd=8+rd' and rs1=8+rs1'
+c.flwsp rd', uimm(x2)
+    flw rd, uimm(x2)
+c.fsw   rd', uimm(rs1')
+    fsw rs2, uimm(rs1) where rs2=8+rs2' and rs1=8+rs1'
+c.fswsp rd', uimm(x2)
+    fsw rs2, uimm(x2)
 ```
 
 ### RV32A and RV64A:
