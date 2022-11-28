@@ -40,9 +40,9 @@ typedef struct {
     Buffer buffer;
     State state;
     int ln;
-    int eof;
+    bool eof;
     size_t buf_pos;
-    int emit_tok;
+    bool emit_tok;
     size_t tok_begin;
     size_t tok_end;
 } TokenizerState;

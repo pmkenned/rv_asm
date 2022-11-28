@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #if 1
 const char * token_strs[] = {
@@ -101,7 +102,8 @@ const char * directives[] = {
 const size_t num_directives = NELEM(directives);
 
 const char * csr_names[] = {
-    "mstatus"
+    "mstatus",
+    "mhartid"
 };
 
 const size_t num_csr_names = NELEM(csr_names);
@@ -113,34 +115,34 @@ init_tokenizer(Buffer buffer)
         .buffer = buffer,
         .state = ST_INIT,
         .ln = 0,
-        .eof = 0,
+        .eof = false,
         .buf_pos = 0,
-        .emit_tok = 0,
+        .emit_tok = false,
         .tok_begin = 0,
         .tok_end = 0
     };
     return ts;
 }
 
-static int
+static bool
 is_mnemonic(const char * s)
 {
     return str_in_list(s, mnemonics, num_mnemonics);
 }
 
-static int
+static bool
 is_pseudo(const char * s)
 {
     return str_in_list(s, pseudo_mnemonics, num_pseudo_mnemonics);
 }
 
-static int
+static bool
 is_reg(const char * s)
 {
     return str_in_list(s, reg_names, num_reg_names);
 }
 
-static int
+static bool
 is_csr(const char * s)
 {
     return str_in_list(s, csr_names, num_csr_names);
@@ -367,13 +369,13 @@ next_char(TokenizerState * ts)
 
     if (tok_typ != TOK_NONE) {
         ts->tok_end = ts->buf_pos;
-        ts->emit_tok = 1;
+        ts->emit_tok = true;
     } else {
-        ts->emit_tok = 0;
+        ts->emit_tok = false;
     }
 
     if (ts->state == ST_INIT && next_state != ST_INIT) {
-        assert(ts->emit_tok == 0);
+        assert(ts->emit_tok == false);
         ts->tok_begin = ts->buf_pos;
     }
 

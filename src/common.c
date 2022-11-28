@@ -8,6 +8,7 @@
 #include <limits.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <assert.h>
 
 void
@@ -52,14 +53,14 @@ str_idx_in_list(const char * str, const char * list[], size_t n)
     return i;
 }
 
-int
+bool
 str_in_list(const char * str, const char * list[], size_t n)
 {
     size_t i;
     for (i = 0; i < n; i++)
         if (strcmp(str, list[i]) == 0)
-            return 1;
-    return 0;
+            return true;
+    return false;
 }
 
 Buffer
@@ -88,21 +89,19 @@ read_file(const char * filename)
     return buffer;
 }
 
-int
-parse_int_or_die(const char * s)
+const char *
+parse_int_strerror(int errnum)
 {
-    int i;
-    int rv = parse_int(s, &i);
-    switch (rv) {
-        case 0: break;
-        case -1: die("error: %s: not a valid number\n", s);
-        case -2: die("error: %s: extra characters at end of input\n", s);
-        case -3: die("error: %s out of range of type long\n", s);
-        case -4: die("error: %s greater than INT_MAX\n", s);
-        case -5: die("error: %s less than INT_MIN\n", s);
+    switch (errnum) {
+        case 0: return NULL;
+        case -1: return "not a valid number";
+        case -2: return "extra characters at end of input";
+        case -3: return "out of range of type long";
+        case -4: return "greater than INT_MAX";
+        case -5: return "less than INT_MIN";
         default: assert(0);
     }
-    return i;
+    return NULL;
 }
 
 int
@@ -122,4 +121,17 @@ parse_int(const char * s, int * x) {
         return -5;
     *x = (int) sl;
     return 0;
+}
+
+uint32_t
+sext(uint32_t x, int w)
+{
+    assert(w <= 32);
+    if (w == 32)
+        return x;
+    int msb = (x >> (w-1)) & 0x1;
+    int mask = (1 << w) - 1;
+    return msb ?
+        x | ~mask :
+        x & mask;
 }
