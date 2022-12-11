@@ -1,3 +1,7 @@
+    .text
+    .globl _start
+    .align 2
+_start:
     lui     x1, 0xfffff         # 20-bit imm: 0..1048575
     auipc   x2, 1048575         # 20-bit imm: 0..1048575
     jal     x3, 0x1abcde        # imm[20:1]

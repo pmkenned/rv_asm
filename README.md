@@ -21,7 +21,6 @@ RISC-V Assembler
 - output ELF file
 - string literals
 - %hi, %lo?
-- lists for .byte, .half, etc.
 - handle upper and lower case
 - check ranges of immediate values
 - support CSR instructions

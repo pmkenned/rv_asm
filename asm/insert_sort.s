@@ -1,8 +1,8 @@
     .text
     .align 2
-    .globl main
+    .globl _start
 
-main:
+_start:
     addi a1,x0,5
     addi a0,x0,92
     jal x1,insert_sort    # jal insert_sort

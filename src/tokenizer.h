@@ -8,10 +8,11 @@ typedef enum {
     TOK_MNEM,
     TOK_PSEUDO,
     TOK_REG,
-    TOK_CSR, // TODO
+    TOK_CSR,
     TOK_NUM,
     TOK_IDENT,
-    TOK_STRING, // TODO
+    TOK_STRING,
+    TOK_REL, // TODO
     TOK_EOF,
     TOK_INVALID
 } TokenType;

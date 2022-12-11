@@ -17,6 +17,12 @@
 #define EXT_C 16
 int extensions = 0;
 
+enum {
+    ISA_RV32,
+    ISA_RV64
+};
+int isa = ISA_RV32;
+
 #define OPTION_RVC 1
 #define OPTION_PIC 2
 #define OPTION_RELAX 4
@@ -381,7 +387,7 @@ typedef enum {
 } RefType;
 
 typedef struct {
-    char * s;
+    char * label;
     RefType t;
     uint32_t addr;
     int ln;
@@ -430,13 +436,14 @@ add_symbol(const char * s, uint32_t addr, int ln)
 }
 
 static void
-add_ref(const char * s, RefType rt, uint32_t addr, int ln)
+add_ref(const char * label, RefType rt, uint32_t addr, int ln)
 {
-    refs[num_refs].s = strdup(s);
-    refs[num_refs].t = rt;
-    refs[num_refs].addr = addr;
-    refs[num_refs].ln = ln;
-    num_refs++;
+    refs[num_refs++] = (Ref) {
+        .label  = strdup(label),
+        .t      = rt,
+        .addr   = addr,
+        .ln     = ln
+    };
     if (num_refs >= refs_cap) {
         refs_cap *= 2;
         refs = realloc(refs, sizeof(*refs)*refs_cap);
@@ -452,7 +459,7 @@ print_refs_and_symbols()
     }
     printf("\nreferences:\n");
     for (size_t i = 0; i < num_refs; i++) {
-        printf("\t%s (%d): %02x\n", refs[i].s, refs[i].t, refs[i].addr);
+        printf("\t%s (%d): %02x\n", refs[i].label, refs[i].t, refs[i].addr);
     }
 }
 
@@ -479,9 +486,9 @@ resolve_refs(Buffer * output)
 {
     for (size_t i = 0; i < num_refs; i++) {
         uint32_t opcode = unpack_le(output->p + refs[i].addr, sizeof(uint32_t));
-        size_t j = lookup_symbol(refs[i].s);
+        size_t j = lookup_symbol(refs[i].label);
         if (j == num_symbols)
-            die("error: undefined symbol %s on line %d\n", refs[i].s, refs[i].ln);
+            die("error: undefined symbol %s on line %d\n", refs[i].label, refs[i].ln);
         uint32_t offset = symbols[j].addr - refs[i].addr;
 
         if (refs[i].t == REF_J) {
@@ -506,39 +513,31 @@ tokens_match(Token * tokens, size_t num_tokens, const char * fmt)
     size_t fmt_l = strlen(fmt);
     size_t ti = 0;
     for (size_t i = 0; i < fmt_l; i++) {
-        TokenType tt;
-        bool special = false;
-        switch (fmt[i]) {
-            case ' ': continue;
-            case ',': tt = ',';         break;
-            case ':': tt = ':';         break;
-            case '(': tt = '(';         break;
-            case ')': tt = ')';         break;
-            case '\n': tt = '\n';       break;
-            case 'd': tt = TOK_DIR;     break;
-            case 'm': tt = TOK_MNEM;    break;
-            case 'r': tt = TOK_REG;     break;
-            case 'c': tt = TOK_CSR;     break;
-            case 'n': tt = TOK_NUM;     break;
-            case 'i': tt = TOK_IDENT;   break;
-            case 's': tt = TOK_STRING;  break;
-            case 'o': special = true;   break;
-            default: assert(0);
-        }
+        if (fmt[i] == ' ')
+            continue;
+        // too few tokens
         if (ti >= num_tokens)
             return false;
-        TokenType curr_token = tokens[ti++].t;
-        if (special) {
-            if (fmt[i] == 'o') {
-                if ((curr_token != TOK_NUM) &&
-                    (curr_token != TOK_IDENT))
-                    return false;
-            }
-        } else {
-            if (curr_token != tt)
-                return false;
+        TokenType tt = tokens[ti++].t;
+        switch (fmt[i]) {
+            case ',':  if (tt != ',')           return false; break;
+            case ':':  if (tt != ':')           return false; break;
+            case '(':  if (tt != '(')           return false; break;
+            case ')':  if (tt != ')')           return false; break;
+            case '\n': if (tt != '\n')          return false; break;
+            case 'd':  if (tt != TOK_DIR)       return false; break;
+            case 'm':  if (tt != TOK_MNEM)      return false; break;
+            case 'r':  if (tt != TOK_REG)       return false; break;
+            case 'c':  if (tt != TOK_CSR)       return false; break;
+            case 'n':  if (tt != TOK_NUM)       return false; break;
+            case 'i':  if (tt != TOK_IDENT)     return false; break;
+            case 's':  if (tt != TOK_STRING)    return false; break;
+            case '%':  if (tt != TOK_REL)       return false; break;
+            case 'o':  if (tt != TOK_NUM && tt != TOK_IDENT)    return false; break;
+            default: assert(0);
         }
     }
+    // extra tokens left over
     if (ti < num_tokens)
         return false;
     return true;
@@ -655,7 +654,12 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             break;
 
         case OPERANDS_REG_NUM:
-            tokens_match_or_die(tokens, num_tokens, "m r,n", ln);
+            if (num_tokens == 7) {
+                tokens_match_or_die(tokens, num_tokens, "m r,%(i)", ln);
+                die("%% relocations not yet implemented\n");
+            } else {
+                tokens_match_or_die(tokens, num_tokens, "m r,n", ln);
+            }
             rd  = reg_name_to_bits(tokens[1].s, ln);
             imm = parse_int_or_die(tokens[3].s, ln);
             if ((imm < 0) || (imm > 0xfffff))
@@ -776,7 +780,6 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             opcode |= (rs1 << 7);
             break;
 
-
         case OPERANDS_NUM:
             tokens_match_or_die(tokens, num_tokens, "m r,n", ln); // NOTE: match gcc
             rd = reg_name_to_bits(tokens[1].s, ln);
@@ -853,7 +856,6 @@ static size_t
 parse_directive(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr, int ln)
 {
     assert(tokens[0].t == TOK_DIR);
-    // TODO: allow for lists of numbers
     // TODO: bounds checks
     if (strcmp(tokens[0].s, ".byte") == 0) {
         curr_addr = handle_data_directive(1, tokens, num_tokens, output, curr_addr, ln);
@@ -924,92 +926,164 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
         return 1;
     }
 
+    // TODO: tokens_match_or_die() based on OPERANDS_
+
     Pseudo pseudo = str_idx_in_list(tokens[0].s, pseudo_mnemonics, num_pseudo_mnemonics);
     switch (pseudo) {
         case PSEUDO_BEQZ:
             // beqz rs1, offset
-            // beq  rs1, x0, offset
+            // - beq  rs1, x0, offset
             assert(0); // TODO
         case PSEUDO_BGEZ:
-            // bgez        rs1, offset
-            // bge rs1, x0, offset
+            // bgez     rs1, offset
+            // - bge    rs1, x0, offset
             assert(0); // TODO
         case PSEUDO_BGT:
-            // bgt  rs1, rs2, offset
-            // blt  rs2, rs1, offset
+            // bgt      rs1, rs2, offset
+            // - blt    rs2, rs1, offset
             assert(0); // TODO
         case PSEUDO_BGTU:
-            // bgtu rs1, rs2, offset
-            // bltu rs2, rs1, offset
+            // bgtu     rs1, rs2, offset
+            // - bltu   rs2, rs1, offset
             assert(0); // TODO
         case PSEUDO_BGTZ:
-            // bgtz rs2, offset
-            // blt  x0, rs2, offset
+            // bgtz     rs2, offset
+            // - blt    x0, rs2, offset
             assert(0); // TODO
         case PSEUDO_BLE:
-            // ble  rs1, rs2, offset
-            // bge  rs2, rs1, offset
+            // ble      rs1, rs2, offset
+            // - bge    rs2, rs1, offset
             assert(0); // TODO
         case PSEUDO_BLEU:
-            // bleu  rs1, rs2, offset
-            // bgeu  rs2, rs1, offset
+            // bleu     rs1, rs2, offset
+            // - bgeu   rs2, rs1, offset
             assert(0); // TODO
         case PSEUDO_BLEZ:
-            // blez rs2, offset
-            // bge  x0, rs2, offset
+            // blez     rs2, offset
+            // - bge    x0, rs2, offset
             assert(0); // TODO
         case PSEUDO_BLTZ:
-            // bltz rs1, offset
-            // blt  rs1, x0, offset
+            // bltz     rs1, offset
+            // - blt    rs1, x0, offset
             assert(0); // TODO
         case PSEUDO_BNEZ:
-            // bnez rs1, offset
-            // bne  rs1, x0, offset
+            // bnez     rs1, offset
+            // - bne    rs1, x0, offset
             assert(0); // TODO
         case PSEUDO_CALL:
             // call     rd, symbol
-            // auipc    rd, offsetHi; jalr rd, offsetLo(rd); if rd is omitted, x1
+            // - auipc  rd, offsetHi
+            // - jalr rd, offsetLo(rd) ; if rd is omitted, x1
             assert(0); // TODO
         case PSEUDO_CSRR:
             // csrr     rd, csr
-            // csrrs    rd, csr, x0
+            // - csrrs  rd, csr, x0
             assert(0); // TODO
         case PSEUDO_CSRC:
             // csrc     csr, rs1
-            // csrrc    x0, csr, rs1
+            // - csrrc  x0, csr, rs1
             assert(0); // TODO
         case PSEUDO_CSRCI:
             // csrci    csr, zimm[4:0]
-            // csrrci   x0, csr, zimm
+            // - csrrci x0, csr, zimm
             assert(0); // TODO
         case PSEUDO_CSRS:
             // csrs     csr, rs1
-            // csrrs    x0, csr, rs1
+            // - csrrs  x0, csr, rs1
             assert(0); // TODO
         case PSEUDO_CSRSI:
             // csrsi    csr, zimm[4:0]
-            // csrrsi   x0, csr, zimm
+            // - csrrsi x0, csr, zimm
             assert(0); // TODO
         case PSEUDO_CSRW:
             // csrw     csr, rs1
-            // csrrw    x0, csr, rs1
+            // - csrrw  x0, csr, rs1
             assert(0); // TODO
         case PSEUDO_CSRWI:
             // csrwi    csr, zimm[4:0]
-            // csrrwi   x0, csr, zimm
+            // - csrrwi x0, csr, zimm
             assert(0); // TODO
         case PSEUDO_J:
-            // j    offset
-            // jal  x0, offset
-            assert(0); // TODO
+            // j        offset
+            // - jal    x0, offset
+            expanded_tokens[0][0] = (Token) {.t=TOK_MNEM, .s="jal"};
+            expanded_tokens[0][1] = (Token) {.t=TOK_REG, .s="x0"};
+            expanded_tokens[0][2] = (Token) {.t=',', .s=","};
+            expanded_tokens[0][3] = tokens[1];
+            num_expanded_tokens[0] = 4;
+            return 1;
+
         case PSEUDO_JR:
-            // jr   rs1
-            // jalr x0, 0(rs1)
-            assert(0); // TODO
+            // jr       rs1
+            // - jalr   x0, 0(rs1)
+            expanded_tokens[0][0] = (Token) {.t=TOK_MNEM, .s="jalr"};
+            expanded_tokens[0][1] = (Token) {.t=TOK_REG, .s="x0"};
+            expanded_tokens[0][2] = (Token) {.t=',', .s=","};
+            expanded_tokens[0][3] = (Token) {.t=TOK_NUM, .s="0"};
+            expanded_tokens[0][4] = (Token) {.t='(', .s="("};
+            expanded_tokens[0][5] = tokens[1];
+            expanded_tokens[0][6] = (Token) {.t=')', .s=")"};
+            num_expanded_tokens[0] = 7;
+            return 1;
+
         case PSEUDO_LA:
+            // TODO: check ISA and PIC option
+            // TODO: implement non-PIC case
+            // TODO: implement RV64I
             // la       rd, symbol
-            // RV32I: auipc rd, offsetHi; lw rd, offsetLo(rd)
-            assert(0); // TODO
+            assert(isa == ISA_RV32);
+            if (option_stack[option_sp] & OPTION_PIC) {
+                // RV32I, PIC:
+                // - auipc rd, %pcrel_hi(symbol)
+                // - lw rd, rd, %pcrel_lo(symbol)
+                // where
+                //   %pcrel_hi: R_RISCV_PCREL_HI20:   delta[31 : 12] + delta[11]
+                //   %pcrel_lo: R_RISCV_PCREL_LO12_I: delta[11:0]
+                //   and delta = GOT[symbol] − pc
+                expanded_tokens[0][0] = (Token) {.t=TOK_MNEM, .s="auipc"};
+                expanded_tokens[0][1] = tokens[1];
+                expanded_tokens[0][2] = (Token) {.t=',', .s=","};
+                expanded_tokens[0][3] = (Token) {.t=TOK_NUM, .s="0"}; // TODO: offsetHi
+                num_expanded_tokens[0] = 4;
+                expanded_tokens[1][0] = (Token) {.t=TOK_MNEM, .s="lw"};
+                expanded_tokens[1][1] = tokens[1];
+                expanded_tokens[1][2] = (Token) {.t=',', .s=","};
+                expanded_tokens[1][3] = (Token) {.t=TOK_NUM, .s="0"};
+                expanded_tokens[1][4] = (Token) {.t='(', .s="("};
+                expanded_tokens[1][5] = tokens[1];
+                expanded_tokens[1][6] = (Token) {.t=')', .s=")"};
+                num_expanded_tokens[1] = 7;
+                return 2;
+            } else {
+                // RV32I, no-PIC:
+                // - auipc rd, %pcrel_hi(symbol)
+                // - addi rd, rd, %pcrel_lo(symbol)
+                // where
+                //   %pcrel_hi: R_RISCV_PCREL_HI20:   delta[31 : 12] + delta[11]
+                //   %pcrel_lo: R_RISCV_PCREL_LO12_I: delta[11:0]
+                //   and delta = symbol − pc
+                expanded_tokens[0][0] = (Token) {.t=TOK_MNEM, .s="auipc"};
+                expanded_tokens[0][1] = tokens[1];
+                expanded_tokens[0][2] = (Token) {.t=',', .s=","};
+                expanded_tokens[0][3] = (Token) {.t=TOK_REL, .s="%pcrel_hi"};
+                expanded_tokens[0][4] = (Token) {.t='(', .s="("};
+                expanded_tokens[0][5] = tokens[3];
+                expanded_tokens[0][6] = (Token) {.t=')', .s=")"};
+                num_expanded_tokens[0] = 7;
+                expanded_tokens[1][0] = (Token) {.t=TOK_MNEM, .s="addi"};
+                expanded_tokens[1][1] = tokens[1];
+                expanded_tokens[1][2] = (Token) {.t=',', .s=","};
+                expanded_tokens[1][3] = tokens[1];
+                expanded_tokens[1][4] = (Token) {.t=',', .s=","};
+                expanded_tokens[1][5] = (Token) {.t=TOK_REL, .s="%pcrel_lo"};
+                expanded_tokens[1][6] = (Token) {.t='(', .s="("};
+                expanded_tokens[1][7] = tokens[3];
+                expanded_tokens[1][8] = (Token) {.t=')', .s=")"};
+                num_expanded_tokens[1] = 9;
+                return 2;
+            }
+            // RV64I, PIC: TODO
+            // RV64I, no-PIC: TODO
         case PSEUDO_LI:
             // li       rd, imm
             // RV32I: lui and/or addi
@@ -1333,7 +1407,7 @@ parse(Buffer input)
         free(symbols[i].s);
     free(symbols);
     for(size_t i = 0; i < num_refs; i++)
-        free(refs[i].s);
+        free(refs[i].label);
     free(refs);
 
     return output;
@@ -1401,20 +1475,20 @@ strip_comments(char * s, size_t l)
 // TODO: enforce d requires f
 // TODO: parse _ (e.g. _zicsr_zifencei, etc.)
 static void
-parse_isa_string(const char * isa)
+parse_isa_string(const char * isa_str)
 {
-    if (strncmp(isa, "rv", 2) != 0) {
-        die("error: unsupported ISA string '%s'\n", isa);
+    if (strncmp(isa_str, "rv", 2) != 0) {
+        die("error: unsupported ISA string '%s'\n", isa_str);
     }
-    if ((strncmp(isa+2, "32", 2) != 0) && (strncmp(isa+2, "64", 2) != 0)) {
-        die("error: unsupported ISA string '%s'\n", isa);
+    if ((strncmp(isa_str+2, "32", 2) != 0) && (strncmp(isa_str+2, "64", 2) != 0)) {
+        die("error: unsupported ISA string '%s'\n", isa_str);
     }
-    if (strncmp(isa+2, "64", 2) == 0) {
-        die("error: RV64 is not yet supported\n", isa);
+    if (strncmp(isa_str+2, "64", 2) == 0) {
+        die("error: RV64 is not yet supported\n", isa_str);
     }
-    size_t isa_len = strlen(isa);
+    size_t isa_len = strlen(isa_str);
     for (size_t i = 4; i < isa_len; i++) {
-        switch (isa[i]) {
+        switch (isa_str[i]) {
             case 'i': break;
             case 'm': extensions |= EXT_M; break;
             case 'a': extensions |= EXT_A; break;
@@ -1422,7 +1496,7 @@ parse_isa_string(const char * isa)
             case 'd': extensions |= EXT_D; break;
             case 'c': extensions |= EXT_C; break;
             default:
-                die("error: unsupported extension '%c' in isa string '%s'\n", isa[i], isa);
+                die("error: unsupported extension '%c' in isa string '%s'\n", isa_str[i], isa_str);
         }
     }
     if (extensions & EXT_M) {
