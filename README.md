@@ -17,6 +17,7 @@ RISC-V Assembler
     .double
     .option
 - pseudoinstructions
+  - load and store globals
 - output to file in binary
 - output ELF file
 - string literals
@@ -26,16 +27,31 @@ RISC-V Assembler
 - support CSR instructions
 
 ### Compressed registers
-- x1
-- x2
-- x8
-- x9
-- x10
-- x11
-- x12
-- x13
-- x14
-- x15
+- x1 (ra)
+- x2 (sp)
+- x8 (s0)
+- x9 (s1)
+- x10 (a0)
+- x11 (a1)
+- x12 (a2)
+- x13 (a3)
+- x14 (a4)
+- x15 (a5)
+
+### Relocation Functions
+
+| Assembler Notation          | Description                    | Instruction / Macro |
+| --------------------------- | ------------------------------ | ------------------- |
+| %hi(symbol)                 | Absolute (HI20)                | lui                 |
+| %lo(symbol)                 | Absolute (LO12)                | load, store, add    |
+| %pcrel_hi(symbol)           | PC-relative (HI20)             | auipc               |
+| %pcrel_lo(label)            | PC-relative (LO12)             | load, store, add    |
+| %tprel_hi(symbol)           | TLS LE "Local Exec"            | lui                 |
+| %tprel_lo(symbol)           | TLS LE "Local Exec"            | load, store, add    |
+| %tprel_add(symbol)          | TLS LE "Local Exec"            | add                 |
+| %tls_ie_pcrel_hi(symbol) *  | TLS IE "Initial Exec" (HI20)   | auipc               |
+| %tls_gd_pcrel_hi(symbol) *  | TLS GD "Global Dynamic" (HI20) | auipc               |
+| %got_pcrel_hi(symbol) *     | GOT PC-relative (HI20)         | auipc               |
 
 ### RV32I and RV64I:
 ```
@@ -160,6 +176,9 @@ sh          rs2, offset(rs1)
 sw          rs2, offset(rs1)
     c.swsp  rs2, offset
     c.sw    rs2, offset(rs1)
+sw          rd, symbol, rt      [pseudo]
+    auipc   rt, %pcrel_hi(symbol)
+    sw      rd, %pcrel_lo(symbol)(rt)
 sll         rd, rs1, rs2
 slli        rd, rs1, shamt
     c.slli  rd, shamt
