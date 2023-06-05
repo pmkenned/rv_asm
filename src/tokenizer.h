@@ -13,47 +13,22 @@ typedef enum {
     TOK_IDENT,
     TOK_STRING,
     TOK_REL, // TODO
-    TOK_EOF,
-    TOK_INVALID
+    TOK_EOF
 } TokenType;
-
-typedef enum {
-    ST_INIT,
-    ST_PERIOD,
-    ST_DIR,
-    ST_LPAREN,
-    ST_RPAREN,
-    ST_NEWLINE,
-    ST_COLON,
-    ST_COMMA,
-    ST_MINUS,
-    ST_DEC,
-    ST_ZERO,
-    ST_HEX,
-    ST_OCT,
-    ST_ALPHA,
-    ST_DQUOTE,
-    ST_CLOSE_QUOTE,
-    ST_ERR
-} State;
 
 typedef struct {
     Buffer buffer;
-    State state;
+    size_t pos;
     int ln;
     bool eof;
-    size_t buf_pos;
-    bool emit_tok;
-    size_t tok_begin;
-    size_t tok_end;
-} TokenizerState;
+} Tokenizer;
 
 typedef struct {
-    TokenType t;
-    char s[64];
+    TokenType type;
+    String str;
 } Token;
 
-TokenizerState init_tokenizer(Buffer buffer);
-Token get_token(TokenizerState * ts);
+Tokenizer init_tokenizer(Buffer buffer);
+Token get_token(Tokenizer * tz);
 
 #endif /* TOKENIZER_H */

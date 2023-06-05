@@ -3,6 +3,16 @@ RISC-V Assembler
 
 ## Notes
 
+### Performance Measurements
+
+On ThinkPad (P8600 @ 2.40GHz)
+
+| Version                               | Time/inst    |
+| ------------------------------------- | ------------ |
+| Using C strings                       | 3.02 us/inst |
+| non-C strings (new reg_name_to_bits)  | 4.56 us/inst |
+| non-C strings (old reg_name_to_bits)  | 2.43 us/inst |
+
 ### TODO
 - directives:
     .text

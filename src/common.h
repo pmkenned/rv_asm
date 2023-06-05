@@ -13,20 +13,27 @@ typedef struct {
     size_t cap;
 } Buffer;
 
-void die(const char * fmt, ...);
-void pack_le(void * p, size_t n, uint64_t x);
-uint64_t unpack_le(void * p, size_t n);
-Buffer read_file(const char * filename);
-size_t str_idx_in_list(const char * str, const char * list[], size_t n);
-bool str_in_list(const char * str, const char * list[], size_t n);
-const char * parse_int_strerror(int errnum);
-int parse_int(const char * s, int * x);
-uint32_t sext(uint32_t x, int w);
+typedef struct {
+    char * data;
+    size_t len;
+} String;
 
-// defined in main.c
-extern const char * mnemonics[];
-extern const size_t num_mnemonics;
-extern const char * pseudo_mnemonics[];
-extern const size_t num_pseudo_mnemonics;
+#define CONST_STRING(S) { .data = S, .len = sizeof(S)-1 }
+#define STRING(S) ((String) CONST_STRING(S) )
+#define LEN_DATA(S) (int) (S).len, (S).data
+
+int string_equal(String s1, String s2);
+
+void die(const char * fmt, ...);
+
+void       pack_le(void * p, size_t n, uint64_t x);
+uint64_t unpack_le(void * p, size_t n);
+
+Buffer read_file(const char * filename);
+
+const char * parse_int_strerror(int errnum);
+int          parse_int(String str, int * x);
+
+uint32_t sext(uint32_t x, int w);
 
 #endif /* COMMON_H */

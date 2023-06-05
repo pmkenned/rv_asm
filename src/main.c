@@ -1,3 +1,6 @@
+#define _POSIX_C_SOURCE 199309L
+#include "timer.h"
+#include "risc_v.h"
 #include "common.h"
 #include "tokenizer.h"
 #include <stdio.h>
@@ -6,6 +9,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <limits.h>
 
 #define MAX_TOKENS_PER_LINE 10
 #define MAX_PSEUDO_EXPAND 3
@@ -28,190 +32,6 @@ int isa = ISA_RV32;
 #define OPTION_RELAX 4
 int option_stack[32] = { OPTION_RVC };
 size_t option_sp = 0;
-
-#define PSEUDO_LIST \
-    X(PSEUDO_BEQZ,          "beqz",         OPERANDS_REG_OFFSET      ) \
-    X(PSEUDO_BGEZ,          "bgez",         OPERANDS_REG_OFFSET      ) \
-    X(PSEUDO_BGT,           "bgt",          OPERANDS_REG_REG_OFFSET  ) \
-    X(PSEUDO_BGTU,          "bgtu",         OPERANDS_REG_REG_OFFSET  ) \
-    X(PSEUDO_BGTZ,          "bgtz",         OPERANDS_REG_OFFSET      ) \
-    X(PSEUDO_BLE,           "ble",          OPERANDS_REG_REG_OFFSET  ) \
-    X(PSEUDO_BLEU,          "bleu",         OPERANDS_REG_REG_OFFSET  ) \
-    X(PSEUDO_BLEZ,          "blez",         OPERANDS_REG_OFFSET      ) \
-    X(PSEUDO_BLTZ,          "bltz",         OPERANDS_REG_OFFSET      ) \
-    X(PSEUDO_BNEZ,          "bnez",         OPERANDS_REG_OFFSET      ) \
-    X(PSEUDO_CALL,          "call",         OPERANDS_REG_SYMBOL      ) \
-    X(PSEUDO_CSRR,          "csrr",         OPERANDS_REG_CSR         ) \
-    X(PSEUDO_CSRC,          "csrc",         OPERANDS_CSR_REG         ) \
-    X(PSEUDO_CSRCI,         "csrci",        OPERANDS_CSR_NUM         ) \
-    X(PSEUDO_CSRS,          "csrs",         OPERANDS_CSR_REG         ) \
-    X(PSEUDO_CSRSI,         "csrsi",        OPERANDS_CSR_NUM         ) \
-    X(PSEUDO_CSRW,          "csrw",         OPERANDS_CSR_REG         ) \
-    X(PSEUDO_CSRWI,         "csrwi",        OPERANDS_CSR_NUM         ) \
-    X(PSEUDO_J,             "j",            OPERANDS_OFFSET          ) \
-    X(PSEUDO_JR,            "jr",           OPERANDS_REG             ) \
-    X(PSEUDO_LA,            "la",           OPERANDS_REG_SYMBOL      ) \
-    X(PSEUDO_LI,            "li",           OPERANDS_REG_NUM         ) \
-    X(PSEUDO_LLA,           "lla",          OPERANDS_REG_SYMBOL      ) \
-    X(PSEUDO_MV,            "mv",           OPERANDS_REG_REG         ) \
-    X(PSEUDO_NEG,           "neg",          OPERANDS_REG_REG         ) \
-    X(PSEUDO_NOP,           "nop",          OPERANDS_NONE            ) \
-    X(PSEUDO_NOT,           "not",          OPERANDS_REG_REG         ) \
-    X(PSEUDO_RDCYCLE,       "rdcycle",      OPERANDS_NONE            ) \
-    X(PSEUDO_RDINSTRET,     "rdinstret",    OPERANDS_NONE            ) \
-    X(PSEUDO_RDTIME,        "rdtime",       OPERANDS_NONE            ) \
-    X(PSEUDO_RET,           "ret",          OPERANDS_NONE            ) \
-    X(PSEUDO_SEQZ,          "seqz",         OPERANDS_REG_REG         ) \
-    X(PSEUDO_SGTZ,          "sgtz",         OPERANDS_REG_REG         ) \
-    X(PSEUDO_SLTZ,          "sltz",         OPERANDS_REG_REG         ) \
-    X(PSEUDO_SNEZ,          "snez",         OPERANDS_REG_REG         ) \
-    X(PSEUDO_SUB,           "sub",          OPERANDS_REG_REG_REG     ) \
-    X(PSEUDO_TAIL,          "tail",         OPERANDS_SYMBOL          ) \
-    X(PSEUDO_RDCYCLEH,      "rdcycleh",     OPERANDS_NONE            ) \
-    X(PSEUDO_RDINSTRETH,    "rdinstreth",   OPERANDS_NONE            ) \
-    X(PSEUDO_RDTIMEH,       "rdtimeh",      OPERANDS_NONE            )
-
-typedef enum {
-#define X(MNEM, STR, OPERANDS) MNEM,
-    PSEUDO_LIST
-#undef X
-} Pseudo;
-
-const char * pseudo_mnemonics[] = {
-#define X(MNEM, STR, OPERANDS) STR,
-    PSEUDO_LIST
-#undef X
-    "invalid"
-};
-
-const size_t num_pseudo_mnemonics = NELEM(pseudo_mnemonics);
-
-#define INST_LIST_I \
-    X(MNEM_LUI,     "lui",      FMT_U,  OPERANDS_REG_NUM,           0x00000037) \
-    X(MNEM_AUIPC,   "auipc",    FMT_U,  OPERANDS_REG_NUM,           0x00000017) \
-    X(MNEM_JAL,     "jal",      FMT_J,  OPERANDS_REG_OFFSET,        0x0000006f) \
-    X(MNEM_JALR,    "jalr",     FMT_I,  OPERANDS_REG_NUM_REG,       0x00000067) \
-    X(MNEM_BEQ,     "beq",      FMT_B,  OPERANDS_REG_REG_OFFSET,    0x00000063) \
-    X(MNEM_BNE,     "bne",      FMT_B,  OPERANDS_REG_REG_OFFSET,    0x00001063) \
-    X(MNEM_BLT,     "blt",      FMT_B,  OPERANDS_REG_REG_OFFSET,    0x00004063) \
-    X(MNEM_BGE,     "bge",      FMT_B,  OPERANDS_REG_REG_OFFSET,    0x00005063) \
-    X(MNEM_BLTU,    "bltu",     FMT_B,  OPERANDS_REG_REG_OFFSET,    0x00006063) \
-    X(MNEM_BGEU,    "bgeu",     FMT_B,  OPERANDS_REG_REG_OFFSET,    0x00007063) \
-    X(MNEM_LB,      "lb",       FMT_I,  OPERANDS_REG_NUM_REG,       0x00000003) \
-    X(MNEM_LH,      "lh",       FMT_I,  OPERANDS_REG_NUM_REG,       0x00001003) \
-    X(MNEM_LW,      "lw",       FMT_I,  OPERANDS_REG_NUM_REG,       0x00002003) \
-    X(MNEM_LBU,     "lbu",      FMT_I,  OPERANDS_REG_NUM_REG,       0x00004003) \
-    X(MNEM_LHU,     "lhu",      FMT_I,  OPERANDS_REG_NUM_REG,       0x00005003) \
-    X(MNEM_SB,      "sb",       FMT_S,  OPERANDS_REG_NUM_REG,       0x00000023) \
-    X(MNEM_SH,      "sh",       FMT_S,  OPERANDS_REG_NUM_REG,       0x00001023) \
-    X(MNEM_SW,      "sw",       FMT_S,  OPERANDS_REG_NUM_REG,       0x00002023) \
-    X(MNEM_ADDI,    "addi",     FMT_I,  OPERANDS_REG_REG_NUM,       0x00000013) \
-    X(MNEM_SLTI,    "slti",     FMT_I,  OPERANDS_REG_REG_NUM,       0x00002013) \
-    X(MNEM_SLTIU,   "sltiu",    FMT_I,  OPERANDS_REG_REG_NUM,       0x00003013) \
-    X(MNEM_XORI,    "xori",     FMT_I,  OPERANDS_REG_REG_NUM,       0x00004013) \
-    X(MNEM_ORI,     "ori",      FMT_I,  OPERANDS_REG_REG_NUM,       0x00006013) \
-    X(MNEM_ANDI,    "andi",     FMT_I,  OPERANDS_REG_REG_NUM,       0x00007013) \
-    X(MNEM_SLLI,    "slli",     FMT_I,  OPERANDS_REG_REG_NUM,       0x00001013) \
-    X(MNEM_SRLI,    "srli",     FMT_I,  OPERANDS_REG_REG_NUM,       0x00005013) \
-    X(MNEM_SRAI,    "srai",     FMT_I,  OPERANDS_REG_REG_NUM,       0x40005013) \
-    X(MNEM_ADD,     "add",      FMT_R,  OPERANDS_REG_REG_REG,       0x00000033) \
-    X(MNEM_SUB,     "sub",      FMT_R,  OPERANDS_REG_REG_REG,       0x40000033) \
-    X(MNEM_SLL,     "sll",      FMT_R,  OPERANDS_REG_REG_REG,       0x00001033) \
-    X(MNEM_SLT,     "slt",      FMT_R,  OPERANDS_REG_REG_REG,       0x00002033) \
-    X(MNEM_SLTU,    "sltu",     FMT_R,  OPERANDS_REG_REG_REG,       0x00003033) \
-    X(MNEM_XOR,     "xor",      FMT_R,  OPERANDS_REG_REG_REG,       0x00004033) \
-    X(MNEM_SRL,     "srl",      FMT_R,  OPERANDS_REG_REG_REG,       0x00005033) \
-    X(MNEM_SRA,     "sra",      FMT_R,  OPERANDS_REG_REG_REG,       0x40005033) \
-    X(MNEM_OR,      "or",       FMT_R,  OPERANDS_REG_REG_REG,       0x00006033) \
-    X(MNEM_AND,     "and",      FMT_R,  OPERANDS_REG_REG_REG,       0x00007033) \
-    X(MNEM_FENCE,   "fence",    FMT_I,  OPERANDS_IORW_IORW,         0x0000000f) \
-    X(MNEM_FENCE_I, "fence.i",  FMT_I,  OPERANDS_NONE,              0x0000100f) \
-    X(MNEM_ECALL,   "ecall",    FMT_I,  OPERANDS_NONE,              0x00000073) \
-    X(MNEM_EBREAK,  "ebreak",   FMT_I,  OPERANDS_NONE,              0x00100073) \
-    X(MNEM_CSRRW,   "csrrw",    FMT_I,  OPERANDS_REG_CSR_REG,       0x00001073) \
-    X(MNEM_CSRRS,   "csrrs",    FMT_I,  OPERANDS_REG_CSR_REG,       0x00002073) \
-    X(MNEM_CSRRC,   "csrrc",    FMT_I,  OPERANDS_REG_CSR_REG,       0x00003073) \
-    X(MNEM_CSRRWI,  "csrrwi",   FMT_I,  OPERANDS_REG_CSR_NUM,       0x00005073) \
-    X(MNEM_CSRRSI,  "csrrsi",   FMT_I,  OPERANDS_REG_CSR_NUM,       0x00006073) \
-    X(MNEM_CSRRCI,  "csrrci",   FMT_I,  OPERANDS_REG_CSR_NUM,       0x00007073)
-
-#define INST_LIST_M \
-    X(MNEM_MUL,     "mul",      FMT_R,  OPERANDS_REG_REG_REG,       0x02000033) \
-    X(MNEM_MULH,    "mulh",     FMT_R,  OPERANDS_REG_REG_REG,       0x02001033) \
-    X(MNEM_MULHSU,  "mulhsu",   FMT_R,  OPERANDS_REG_REG_REG,       0x02002033) \
-    X(MNEM_MULHU,   "mulhu",    FMT_R,  OPERANDS_REG_REG_REG,       0x02003033) \
-    X(MNEM_DIV,     "div",      FMT_R,  OPERANDS_REG_REG_REG,       0x02004033) \
-    X(MNEM_DIVU,    "divu",     FMT_R,  OPERANDS_REG_REG_REG,       0x02005033) \
-    X(MNEM_REM,     "rem",      FMT_R,  OPERANDS_REG_REG_REG,       0x02006033) \
-    X(MNEM_REMU,    "remu",     FMT_R,  OPERANDS_REG_REG_REG,       0x02007033)
-
-#define INST_LIST_IC \
-    X(MNEM_C_NOP,       "c.nop",        FMT_CI,     OPERANDS_NONE,          0x0001) \
-    X(MNEM_C_ADDI,      "c.addi",       FMT_CI,     OPERANDS_REG_NUM,       0x0001) \
-    X(MNEM_C_JAL,       "c.jal",        FMT_CJ,     OPERANDS_OFFSET,        0x2001) \
-    X(MNEM_C_LI,        "c.li",         FMT_CI,     OPERANDS_REG_NUM,       0x4001) \
-    X(MNEM_C_ADDI16SP,  "c.addi16sp",   FMT_CI,     OPERANDS_NUM,           0x6101) \
-    X(MNEM_C_LUI,       "c.lui",        FMT_CI,     OPERANDS_REG_NUM,       0x6001) \
-    X(MNEM_C_SRLI,      "c.srli",       FMT_CI,     OPERANDS_REG_NUM,       0x8001) \
-    X(MNEM_C_SRAI,      "c.srai",       FMT_CI,     OPERANDS_REG_NUM,       0x8401) \
-    X(MNEM_C_ANDI,      "c.andi",       FMT_CI,     OPERANDS_REG_NUM,       0x8801) \
-    X(MNEM_C_SUB,       "c.sub",        FMT_CR,     OPERANDS_REG_REG,       0x8c01) \
-    X(MNEM_C_XOR,       "c.xor",        FMT_CR,     OPERANDS_REG_REG,       0x8c21) \
-    X(MNEM_C_OR,        "c.or",         FMT_CR,     OPERANDS_REG_REG,       0x8c41) \
-    X(MNEM_C_AND,       "c.and",        FMT_CR,     OPERANDS_REG_REG,       0x8c61) \
-    X(MNEM_C_J,         "c.j",          FMT_CJ,     OPERANDS_OFFSET,        0xa001) \
-    X(MNEM_C_BEQZ,      "c.beqz",       FMT_CB,     OPERANDS_REG_NUM,       0xc001) \
-    X(MNEM_C_BNEZ,      "c.bnez",       FMT_CB,     OPERANDS_REG_NUM,       0xe001) \
-    X(MNEM_C_ADDI4SPN,  "c.addi4spn",   FMT_CIW,    OPERANDS_REG_REG_NUM,   0x0000) \
-    X(MNEM_C_LW,        "c.lw",         FMT_CL,     OPERANDS_REG_NUM_REG,   0x4000) \
-    X(MNEM_C_SW,        "c.sw",         FMT_CL,     OPERANDS_REG_NUM_REG,   0xc000) \
-    X(MNEM_C_SLLI,      "c.slli",       FMT_CI,     OPERANDS_REG_NUM,       0x0002) \
-    X(MNEM_C_LWSP,      "c.lwsp",       FMT_CSS,    OPERANDS_REG_NUM_REG,   0x3002) \
-    X(MNEM_C_JR,        "c.jr",         FMT_CSS,    OPERANDS_REG,           0x8002) \
-    X(MNEM_C_MV,        "c.mv",         FMT_CR,     OPERANDS_REG_REG,       0x8002) \
-    X(MNEM_C_EBREAK,    "c.ebreak",     FMT_CI,     OPERANDS_NONE,          0x9002) \
-    X(MNEM_C_JALR,      "c.jalr",       FMT_CJ,     OPERANDS_REG,           0x9002) \
-    X(MNEM_C_ADD,       "c.add",        FMT_CR,     OPERANDS_REG_REG,       0x9002) \
-    X(MNEM_C_SWSP,      "c.swsp",       FMT_CSS,    OPERANDS_REG_NUM_REG,   0xc002)
-
-#define INST_LIST_RV32DC \
-    X(MNEM_C_FLD,       "c.fld",        FMT_CL,     OPERANDS_REG_NUM_REG,   0x2000) \
-    X(MNEM_C_FSD,       "c.fsd",        FMT_CL,     OPERANDS_REG_NUM_REG,   0xa000) \
-    X(MNEM_C_FLDSP,     "c.fldsp",      FMT_CI,     OPERANDS_REG_NUM_REG,   0x2002) \
-    X(MNEM_C_FSDSP,     "c.fsdsp",      FMT_CSS,    OPERANDS_REG_NUM_REG,   0xa002)
-
-#define INST_LIST_RV32FC \
-    X(MNEM_C_FLW,       "c.flw",        FMT_CL,     OPERANDS_REG_NUM_REG,   0x6000) \
-    X(MNEM_C_FSW,       "c.fsw",        FMT_CL,     OPERANDS_REG_NUM_REG,   0xe000) \
-    X(MNEM_C_FLWSP,     "c.flwsp",      FMT_CSS,    OPERANDS_REG_NUM_REG,   0x6002) \
-    X(MNEM_C_FSWSP,     "c.fswsp",      FMT_CSS,    OPERANDS_REG_NUM_REG,   0xe002)
-
-#define INST_LIST \
-    INST_LIST_I         \
-    INST_LIST_M         \
-    INST_LIST_IC        \
-    INST_LIST_RV32DC    \
-    INST_LIST_RV32FC
-
-typedef enum {
-#define X(MNEM, STR, FMT, OPERANDS, OPCODE) MNEM,
-    INST_LIST
-#undef X
-} Mnemonic;
-
-const char * mnemonics[] = {
-#define X(MNEM, STR, FMT, OPERANDS, OPCODE) STR,
-    INST_LIST
-#undef X
-};
-
-const size_t num_mnemonics = NELEM(mnemonics);
-
-uint32_t opcodes[] = {
-#define X(MNEM, STR, FMT, OPERANDS, OPCODE) OPCODE,
-    INST_LIST
-#undef X
-};
 
 typedef enum {
     FMT_B,
@@ -265,23 +85,27 @@ compressed_available()
     return (extensions & EXT_C) && (option_stack[option_sp] & OPTION_RVC);
 }
 
+#if 1
 static int
-reg_name_to_bits(const char * reg_name, int ln)
+reg_name_to_bits(String reg_name, int ln)
 {
-    if (strlen(reg_name) < 2)
+    if (reg_name.len < 2)
         goto error;
 
-    if (strcmp(reg_name, "ra") == 0) return 1;
-    if (strcmp(reg_name, "sp") == 0) return 2;
-    if (strcmp(reg_name, "gp") == 0) return 3;
-    if (strcmp(reg_name, "tp") == 0) return 4;
-    if (strcmp(reg_name, "fp") == 0) return 8;
+    if (reg_name.len == 2) {
+        if (!strncmp(reg_name.data, "ra", 2)) return 1;
+        if (!strncmp(reg_name.data, "sp", 2)) return 2;
+        if (!strncmp(reg_name.data, "gp", 2)) return 3;
+        if (!strncmp(reg_name.data, "tp", 2)) return 4;
+        if (!strncmp(reg_name.data, "fp", 2)) return 8;
+    }
 
     int n;
-    if (parse_int(reg_name+1, &n) < 0)
+    String reg_num_str = { .data = reg_name.data+1, .len = reg_name.len-1 };
+    if (parse_int(reg_num_str, &n) < 0)
         goto error;
 
-    switch (reg_name[0]) {
+    switch (reg_name.data[0]) {
         case 'x':
             if (n < 0 || n > 31)
                 goto error;
@@ -291,7 +115,7 @@ reg_name_to_bits(const char * reg_name, int ln)
                 goto error;
             return n+10;
         case 's':
-            if (n < 0 || n > 31)
+            if (n < 0 || n > 11)
                 goto error;
             return (n <= 1) ? n+8 : n-2+18;
         case 't':
@@ -301,7 +125,47 @@ reg_name_to_bits(const char * reg_name, int ln)
     }
 
 error:
-    die("error: invalid register name '%s' on line %d\n", reg_name, ln);
+    die("error: invalid register name '%.*s' on line %d\n", LEN_DATA(reg_name), ln);
+    return 0;
+}
+#else
+static int
+reg_name_to_bits(String reg_name, int ln)
+{
+    assert(num_reg_names == 64);
+    size_t i;
+    for (i = 0; i < num_reg_names; i++) {
+        if (string_equal(reg_name, reg_names[i]))
+            break;
+    }
+    if (i < 32)
+        return i;
+    else if (i == 32)
+        return 8;
+    else if (i < 64)
+        return i-32;
+    die("error: invalid register name '%.*s' on line %d\n", LEN_DATA(reg_name), ln);
+    return 0;
+}
+#endif
+
+static Mnemonic
+which_mnemonic(String str)
+{
+    for (size_t i = 0; i < num_mnemonics; i++) {
+        if (string_equal(str, mnemonics[i]))
+            return i;
+    }
+    return 0;
+}
+
+static Pseudo
+which_pseudo(String str)
+{
+    for (size_t i = 0; i < num_pseudo_mnemonics; i++) {
+        if (string_equal(str, pseudo_mnemonics[i]))
+            return i;
+    }
     return 0;
 }
 
@@ -375,7 +239,7 @@ cj_fmt_imm(uint32_t imm)
 }
 
 typedef struct {
-    char * s;
+    String str;
     uint32_t addr;
     int ln;
 } Symbol;
@@ -387,8 +251,8 @@ typedef enum {
 } RefType;
 
 typedef struct {
-    char * label;
-    RefType t;
+    String label;
+    RefType type;
     uint32_t addr;
     int ln;
 } Ref;
@@ -409,26 +273,30 @@ Ref * refs;
 //} ParserState;
 
 static size_t
-lookup_symbol(const char * s)
+lookup_symbol(String str)
 {
     size_t i;
     for (i = 0; i < num_symbols; i++) {
-        if (strcmp(symbols[i].s, s) == 0)
+        if (string_equal(symbols[i].str, str))
             break;
     }
     return i;
 }
 
 static void
-add_symbol(const char * s, uint32_t addr, int ln)
+add_symbol(String str, uint32_t addr, int ln)
 {
-    size_t idx = lookup_symbol(s);
+    size_t idx = lookup_symbol(str);
+
     if (idx < num_symbols)
-        die("error: symbol '%s' defined on line %d already defined on line %d\n", s, ln, symbols[idx].ln);
-    symbols[num_symbols].s = strdup(s);
-    symbols[num_symbols].addr = addr;
-    symbols[num_symbols].ln = ln;
-    num_symbols++;
+        die("error: symbol '%.*s' defined on line %d already defined on line %d\n", LEN_DATA(str), ln, symbols[idx].ln);
+
+    symbols[num_symbols++] = (Symbol) {
+        .str = str,
+        .addr = addr,
+        .ln = ln
+    };
+
     if (num_symbols >= symbols_cap) {
         symbols_cap *= 2;
         symbols = realloc(symbols, sizeof(*symbols)*symbols_cap);
@@ -436,32 +304,35 @@ add_symbol(const char * s, uint32_t addr, int ln)
 }
 
 static void
-add_ref(const char * label, RefType rt, uint32_t addr, int ln)
+add_ref(String label, RefType type, uint32_t addr, int ln)
 {
     refs[num_refs++] = (Ref) {
-        .label  = strdup(label),
-        .t      = rt,
+        .label  = label,
+        .type   = type,
         .addr   = addr,
         .ln     = ln
     };
+
     if (num_refs >= refs_cap) {
         refs_cap *= 2;
         refs = realloc(refs, sizeof(*refs)*refs_cap);
     }
 }
 
+#if 0
 static void
 print_refs_and_symbols()
 {
     printf("\nsymbol table:\n");
     for (size_t i = 0; i < num_symbols; i++) {
-        printf("\t%s: %08x\n", symbols[i].s, symbols[i].addr);
+        printf("\t%.*s: %08x\n", LEN_DATA(symbols[i].str), symbols[i].addr);
     }
     printf("\nreferences:\n");
     for (size_t i = 0; i < num_refs; i++) {
-        printf("\t%s (%d): %02x\n", refs[i].label, refs[i].t, refs[i].addr);
+        printf("\t%.*s (%d): %02x\n", LEN_DATA(refs[i].label), refs[i].type, refs[i].addr);
     }
 }
+#endif
 
 static void
 deposit(Buffer * output, size_t addr, size_t size, uint64_t data)
@@ -488,20 +359,20 @@ resolve_refs(Buffer * output)
         uint32_t opcode = unpack_le(output->p + refs[i].addr, sizeof(uint32_t));
         size_t j = lookup_symbol(refs[i].label);
         if (j == num_symbols)
-            die("error: undefined symbol %s on line %d\n", refs[i].label, refs[i].ln);
+            die("error: undefined symbol %.*s on line %d\n", LEN_DATA(refs[i].label), refs[i].ln);
         uint32_t offset = symbols[j].addr - refs[i].addr;
 
-        if (refs[i].t == REF_J) {
-            opcode |= j_fmt_imm(offset);
-        } else if (refs[i].t == REF_B) {
-            opcode |= b_fmt_imm(offset);
-        } else if (refs[i].t == REF_CJ) {
-            uint32_t imm_fmt = cj_fmt_imm(offset);
-            if (refs[i].addr % 4 == 2)
-                imm_fmt <<= 16;
-            opcode |= imm_fmt;
-        } else {
-            assert(0);
+        switch (refs[i].type) {
+            case REF_J: opcode |= j_fmt_imm(offset); break;
+            case REF_B: opcode |= b_fmt_imm(offset); break;
+            case REF_CJ: {
+                uint32_t imm_fmt = cj_fmt_imm(offset);
+                if (refs[i].addr % 4 == 2)
+                    imm_fmt <<= 16;
+                opcode |= imm_fmt;
+                break;
+            }
+            default: assert(0);
         }
         deposit(output, refs[i].addr, 4, opcode);
     }
@@ -518,7 +389,7 @@ tokens_match(Token * tokens, size_t num_tokens, const char * fmt)
         // too few tokens
         if (ti >= num_tokens)
             return false;
-        TokenType tt = tokens[ti++].t;
+        TokenType tt = tokens[ti++].type;
         switch (fmt[i]) {
             case ',':  if (tt != ',')           return false; break;
             case ':':  if (tt != ':')           return false; break;
@@ -559,30 +430,30 @@ tokens_match(Token * tokens, size_t num_tokens, size_t n, ...)
         return false;
     va_start(ap, n);
     for (size_t i = 0; i < n; i++) {
-        if (tokens[i].t != va_arg(ap, TokenType))
+        if (tokens[i].type != va_arg(ap, TokenType))
             return false;
     }
-	va_end(ap);
+    va_end(ap);
     return true;
 }
 #endif
 
 static int
-parse_int_or_die(const char * s, int ln)
+parse_int_or_die(String str, int ln)
 {
     int i;
-    int errnum = parse_int(s, &i);
+    int errnum = parse_int(str, &i);
     if (errnum < 0)
         die("error: %s on line %d\n", parse_int_strerror(errnum), ln);
     return i;
 }
 
 static int
-parse_iorw_or_die(const char * s, int ln)
+parse_iorw_or_die(String str, int ln)
 {
     int iorw = 0;
-    char c;
-    while ((c = *s++)) {
+    for (size_t i = 0; i < str.len; i++) {
+        char c = str.data[i];
         if (c == 'i')
             iorw |= 8;
         else if (c == 'o')
@@ -600,16 +471,19 @@ parse_iorw_or_die(const char * s, int ln)
 static size_t
 parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr, int ln)
 {
-    Mnemonic mnemonic = str_idx_in_list(tokens[0].s, mnemonics, num_mnemonics);
+    Mnemonic mnemonic = which_mnemonic(tokens[0].str);
     if (mnemonic == num_mnemonics)
-        die("error: invalid mnemonic '%s' on line %d\n", tokens[0].s, ln);
-    bool compressed = strncmp(tokens[0].s, "c.", 2) == 0;
+        die("error: invalid mnemonic '%.*s' on line %d\n", LEN_DATA(tokens[0].str), ln);
+    bool compressed = (tokens[0].str.len >= 2) && !strncmp(tokens[0].str.data, "c.", 2);
     uint32_t opcode = opcodes[mnemonic];
     Operands expected_operands = operands_for_mnemonic[mnemonic];
     int32_t imm;
     uint32_t rd, rs1, rs2;
     uint32_t imm_fmt, pred, succ;
     uint32_t csr;
+
+    if (compressed && !compressed_available())
+        die("error: compressed instruction used but compressed extension not enabled on line %d\n", ln);
 
     switch (expected_operands) {
         case OPERANDS_NONE:
@@ -619,8 +493,8 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
         case OPERANDS_IORW_IORW:
             if (num_tokens == 4) {
                 tokens_match_or_die(tokens, num_tokens, "m i,i", ln);
-                pred = parse_iorw_or_die(tokens[1].s, ln);
-                succ = parse_iorw_or_die(tokens[3].s, ln);
+                pred = parse_iorw_or_die(tokens[1].str, ln);
+                succ = parse_iorw_or_die(tokens[3].str, ln);
             } else {
                 tokens_match_or_die(tokens, num_tokens, "m", ln);
                 pred = 15;
@@ -633,22 +507,22 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             imm = 0;
             if (num_tokens == 4) {
                 tokens_match_or_die(tokens, num_tokens, "m r,o", ln);
-                rd = reg_name_to_bits(tokens[1].s, ln);
-                if (tokens[3].t == TOK_NUM)
-                    imm = parse_int_or_die(tokens[3].s, ln);
-                else if (tokens[3].t == TOK_IDENT)
-                    add_ref(tokens[3].s, REF_J, curr_addr, ln);
+                rd = reg_name_to_bits(tokens[1].str, ln);
+                if (tokens[3].type == TOK_NUM)
+                    imm = parse_int_or_die(tokens[3].str, ln);
+                else if (tokens[3].type == TOK_IDENT)
+                    add_ref(tokens[3].str, REF_J, curr_addr, ln);
                 else
-                    die("error: invalid format for %s instruction on line %d\n", tokens[0].s, ln);
+                    die("error: invalid format for %.*s instruction on line %d\n", LEN_DATA(tokens[0].str), ln);
             } else {
                 tokens_match_or_die(tokens, num_tokens, "m o", ln);
-                rd = reg_name_to_bits("x1", ln);
-                if (tokens[1].t == TOK_NUM)
-                    imm = parse_int_or_die(tokens[1].s, ln);
-                else if (tokens[1].t == TOK_IDENT)
-                    add_ref(tokens[1].s, REF_J, curr_addr, ln);
+                rd = reg_name_to_bits(STRING("x1"), ln);
+                if (tokens[1].type == TOK_NUM)
+                    imm = parse_int_or_die(tokens[1].str, ln);
+                else if (tokens[1].type == TOK_IDENT)
+                    add_ref(tokens[1].str, REF_J, curr_addr, ln);
                 else
-                    die("error: invalid format for %s instruction on line %d\n", tokens[0].s, ln);
+                    die("error: invalid format for %.*s instruction on line %d\n", LEN_DATA(tokens[0].str), ln);
             }
             opcode |= j_fmt_imm(imm) | (rd << 7);
             break;
@@ -660,8 +534,8 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             } else {
                 tokens_match_or_die(tokens, num_tokens, "m r,n", ln);
             }
-            rd  = reg_name_to_bits(tokens[1].s, ln);
-            imm = parse_int_or_die(tokens[3].s, ln);
+            rd  = reg_name_to_bits(tokens[1].str, ln);
+            imm = parse_int_or_die(tokens[3].str, ln);
             if ((imm < 0) || (imm > 0xfffff))
                 die("error: lui immediate must be in range 0..1048575 on line %d\n", ln);
             imm_fmt = compressed ? ci_fmt_imm(imm) : u_fmt_imm(imm);
@@ -670,20 +544,20 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
 
         case OPERANDS_REG_REG_REG:
             tokens_match_or_die(tokens, num_tokens, "m r,r,r", ln);
-            rd  = reg_name_to_bits(tokens[1].s, ln);
-            rs1 = reg_name_to_bits(tokens[3].s, ln);
-            rs2 = reg_name_to_bits(tokens[5].s, ln);
+            rd  = reg_name_to_bits(tokens[1].str, ln);
+            rs1 = reg_name_to_bits(tokens[3].str, ln);
+            rs2 = reg_name_to_bits(tokens[5].str, ln);
             opcode |= (rs2 << 20) | (rs1 << 15) | (rd << 7);
             break;
 
         case OPERANDS_REG_REG_OFFSET:
             tokens_match_or_die(tokens, num_tokens, "m r,r,o", ln);
-            rs1 = reg_name_to_bits(tokens[1].s, ln);
-            rs2 = reg_name_to_bits(tokens[3].s, ln);
-            if (tokens[5].t == TOK_NUM)
-                imm = parse_int_or_die(tokens[5].s, ln);
+            rs1 = reg_name_to_bits(tokens[1].str, ln);
+            rs2 = reg_name_to_bits(tokens[3].str, ln);
+            if (tokens[5].type == TOK_NUM)
+                imm = parse_int_or_die(tokens[5].str, ln);
             else {
-                add_ref(tokens[5].s, REF_B, curr_addr, ln);
+                add_ref(tokens[5].str, REF_B, curr_addr, ln);
                 imm = 0;
             }
             imm_fmt = b_fmt_imm(imm);
@@ -692,9 +566,9 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
 
         case OPERANDS_REG_REG_NUM:
             tokens_match_or_die(tokens, num_tokens, "m r,r,n", ln);
-            rd = reg_name_to_bits(tokens[1].s, ln);
-            rs1 = reg_name_to_bits(tokens[3].s, ln);
-            imm = parse_int_or_die(tokens[5].s, ln);
+            rd = reg_name_to_bits(tokens[1].str, ln);
+            rs1 = reg_name_to_bits(tokens[3].str, ln);
+            imm = parse_int_or_die(tokens[5].str, ln);
             if (mnemonic == MNEM_SLLI ||
                 mnemonic == MNEM_SRLI ||
                 mnemonic == MNEM_SRAI) {
@@ -705,22 +579,22 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             }
             opcode |= (imm << 20) | (rs1 << 15) | (rd << 7);
             // NOTE: c.addi4spn is here to match gcc
-            if (strcmp(tokens[0].s, "c.addi4spn") == 0) {
+            if (string_equal(tokens[0].str, STRING("c.addi4spn"))) {
                 if (rs1 != 2)
-                    die("error: register source must be sp for %s on line %d\n", tokens[0].s, ln);
+                    die("error: register source must be sp for %.*s on line %d\n", LEN_DATA(tokens[0].str), ln);
             }
             break;
 
         case OPERANDS_REG_NUM_REG:
             tokens_match_or_die(tokens, num_tokens, "m r,n(r)", ln);
-            imm = parse_int_or_die(tokens[3].s, ln);
-            rs1 = reg_name_to_bits(tokens[5].s, ln);
+            imm = parse_int_or_die(tokens[3].str, ln);
+            rs1 = reg_name_to_bits(tokens[5].str, ln);
             if (format_of_instr[mnemonic] == FMT_S) {
-                rs2 = reg_name_to_bits(tokens[1].s, ln);
+                rs2 = reg_name_to_bits(tokens[1].str, ln);
                 imm_fmt = s_fmt_imm(imm);
                 opcode |= imm_fmt | (rs2 << 20) | (rs1 << 15);
             } else {
-                rd = reg_name_to_bits(tokens[1].s, ln);
+                rd = reg_name_to_bits(tokens[1].str, ln);
                 imm_fmt = i_fmt_imm(imm);
                 opcode |= imm_fmt | (rs1 << 15) | (rd << 7);
             }
@@ -734,9 +608,9 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
         case OPERANDS_REG_CSR_NUM:
             /* TODO */
             tokens_match_or_die(tokens, num_tokens, "m r,c,n", ln);
-            rd = reg_name_to_bits(tokens[1].s, ln);
-            csr = 0; // csr_name_to_bits(tokens[3].s, ln);
-            imm = parse_int_or_die(tokens[5].s, ln);
+            rd = reg_name_to_bits(tokens[1].str, ln);
+            csr = 0; // csr_name_to_bits(tokens[3].str, ln);
+            imm = parse_int_or_die(tokens[5].str, ln);
             if (imm < 0 || imm >= 1<<5) {
                 die("error: csr*i immediate must be in range 0..31 on line %d\n", ln);
             }
@@ -746,10 +620,10 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
         case OPERANDS_OFFSET:
             tokens_match_or_die(tokens, num_tokens, "m o", ln);
             imm = 0;
-            if (tokens[1].t == TOK_NUM)
-                imm = parse_int_or_die(tokens[1].s, ln);
+            if (tokens[1].type == TOK_NUM)
+                imm = parse_int_or_die(tokens[1].str, ln);
             else
-                add_ref(tokens[1].s, REF_CJ, curr_addr, ln);
+                add_ref(tokens[1].str, REF_CJ, curr_addr, ln);
             assert(compressed);
             opcode |= cj_fmt_imm(imm);
             break;
@@ -759,14 +633,14 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             tokens_match_or_die(tokens, num_tokens, "m r,r", ln);
             assert(compressed);
             // TODO: make sure rd and rs2 are correct
-            rd = reg_name_to_bits(tokens[1].s, ln);
-            rs2 = reg_name_to_bits(tokens[3].s, ln);
+            rd = reg_name_to_bits(tokens[1].str, ln);
+            rs2 = reg_name_to_bits(tokens[3].str, ln);
             if (mnemonic == MNEM_C_ADD) {
                 if ((rd == 0) || (rs2 == 0))
-                    die("error: rd and rs2 must not be 0 for %s instruction on line %d\n", tokens[0].s, ln);
+                    die("error: rd and rs2 must not be 0 for %.*s instruction on line %d\n", LEN_DATA(tokens[0].str), ln);
             } else if (mnemonic == MNEM_C_MV) {
                 if (rs2 == 0)
-                    die("error: rs2 must not be 0 for %s instruction on line %d\n", tokens[0].s, ln);
+                    die("error: rs2 must not be 0 for %.*s instruction on line %d\n", LEN_DATA(tokens[0].str), ln);
             } else if ((mnemonic == MNEM_C_AND) || (mnemonic == MNEM_C_OR)) {
                 // TODO: check register ranges
             }
@@ -776,26 +650,26 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
         case OPERANDS_REG:
             tokens_match_or_die(tokens, num_tokens, "m r", ln);
             assert(compressed);
-            rs1 = reg_name_to_bits(tokens[1].s, ln);
+            rs1 = reg_name_to_bits(tokens[1].str, ln);
             opcode |= (rs1 << 7);
             break;
 
         case OPERANDS_NUM:
             tokens_match_or_die(tokens, num_tokens, "m r,n", ln); // NOTE: match gcc
-            rd = reg_name_to_bits(tokens[1].s, ln);
+            rd = reg_name_to_bits(tokens[1].str, ln);
             if (rd != 2)
-                die("error: register destination must be sp for %s on line %d\n", tokens[0].s, ln);
+                die("error: register destination must be sp for %.*s on line %d\n", LEN_DATA(tokens[0].str), ln);
             break;
 
         default:
-            die("error: don't know how to parse %s on line %d\n", tokens[0].s, ln);
+            die("error: don't know how to parse %.*s on line %d\n", LEN_DATA(tokens[0].str), ln);
             assert(0);
             break;
     }
 
     size_t opcode_size = compressed ? 2: 4;
     deposit(output, curr_addr, opcode_size, opcode);
-    //printf("deposit %08x (%zu) %s\n", opcode, opcode_size, mnemonics[mnemonic]);
+    //printf("deposit %08x (%zu) %.*s\n", opcode, opcode_size, LEN_DATA(mnemonics[mnemonic]));
     curr_addr += opcode_size;
     return curr_addr;
 }
@@ -839,13 +713,13 @@ handle_data_directive(size_t nbytes, Token * tokens, size_t num_tokens, Buffer *
     for (size_t i = 0; i < num_tokens; i++) {
         if (i == 0) {
         } else if (i % 2 == 1) {
-            int n = parse_int_or_die(tokens[i].s, ln);
+            int n = parse_int_or_die(tokens[i].str, ln);
             // TODO: bounds check
             // TODO: confirm nbytes == 8 case
             deposit(output, curr_addr, nbytes, n);
             curr_addr += nbytes;
         } else if (i % 2 == 0) {
-            if (tokens[i].t != ',')
+            if (tokens[i].type != ',')
                 die("error: parse error on line %d\n", ln);
         }
     }
@@ -855,63 +729,64 @@ handle_data_directive(size_t nbytes, Token * tokens, size_t num_tokens, Buffer *
 static size_t
 parse_directive(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr, int ln)
 {
-    assert(tokens[0].t == TOK_DIR);
+    assert(tokens[0].type == TOK_DIR);
     // TODO: bounds checks
-    if (strcmp(tokens[0].s, ".byte") == 0) {
-        curr_addr = handle_data_directive(1, tokens, num_tokens, output, curr_addr, ln);
-    } else if (strcmp(tokens[0].s, ".half") == 0) {
-        curr_addr = handle_data_directive(2, tokens, num_tokens, output, curr_addr, ln);
-    } else if (strcmp(tokens[0].s, ".word") == 0) {
-        curr_addr = handle_data_directive(4, tokens, num_tokens, output, curr_addr, ln);
-    } else if (strcmp(tokens[0].s, ".dword") == 0) {
-        curr_addr = handle_data_directive(8, tokens, num_tokens, output, curr_addr, ln);
-    } else if (strcmp(tokens[0].s, ".string") == 0) {
+
+    size_t data_sz = 0;
+    if      (string_equal(tokens[0].str, STRING(".byte")))  data_sz = 1;
+    else if (string_equal(tokens[0].str, STRING(".half")))  data_sz = 2;
+    else if (string_equal(tokens[0].str, STRING(".word")))  data_sz = 4;
+    else if (string_equal(tokens[0].str, STRING(".dword"))) data_sz = 8;
+
+    if (data_sz > 0) {
+        curr_addr = handle_data_directive(data_sz, tokens, num_tokens, output, curr_addr, ln);
+    } else if (string_equal(tokens[0].str, STRING(".string"))) {
         tokens_match_or_die(tokens, num_tokens, "d s", ln);
-        for (const char * cp = tokens[1].s+1; *cp != '"'; cp++) {
+        for (const char * cp = tokens[1].str.data+1; *cp != '"'; cp++) {
             deposit(output, curr_addr++, 1, *cp);
         }
         deposit(output, curr_addr++, 1, '\0');
-    } else if (strcmp(tokens[0].s, ".align") == 0) {
+    } else if (string_equal(tokens[0].str, STRING(".align"))) {
         tokens_match_or_die(tokens, num_tokens, "d n", ln);
-        int log2_alignment = parse_int_or_die(tokens[1].s, ln);
+        int log2_alignment = parse_int_or_die(tokens[1].str, ln);
         if ((log2_alignment < 1) || (log2_alignment > 20))
             die("error: invalid alignment %d on line %d\n", log2_alignment, ln);
         curr_addr = align_output(output, 1 << log2_alignment, curr_addr);
-    } else if (strcmp(tokens[0].s, ".globl") == 0) {
+    } else if (string_equal(tokens[0].str, STRING(".globl"))) {
         tokens_match_or_die(tokens, num_tokens, "d i", ln);
         // TODO
-    } else if (strcmp(tokens[0].s, ".text") == 0) {
+    } else if (string_equal(tokens[0].str, STRING(".text"))) {
         tokens_match_or_die(tokens, num_tokens, "d", ln);
         // TODO
-    } else if (strcmp(tokens[0].s, ".data") == 0) {
+    } else if (string_equal(tokens[0].str, STRING(".data"))) {
         tokens_match_or_die(tokens, num_tokens, "d", ln);
         // TODO
-    } else if (strcmp(tokens[0].s, ".option") == 0) {
+    } else if (string_equal(tokens[0].str, STRING(".option"))) {
         tokens_match_or_die(tokens, num_tokens, "d i", ln);
-        if (strcmp(tokens[1].s, "push") == 0) {
+        if (string_equal(tokens[1].str, STRING("push"))) {
             option_sp++;
             if (option_sp >= NELEM(option_stack))
                 die("error: exceeded max depth of option stack on line %d\n", ln);
             option_stack[option_sp] = option_stack[option_sp-1];
-        } else if (strcmp(tokens[1].s, "pop") == 0) {
+        } else if (string_equal(tokens[1].str, STRING("pop"))) {
             if (option_sp == 0)
                 die("error: popped option stack too many times on line %d\n", ln);
             option_sp--;
-        } else if (strcmp(tokens[1].s, "rvc") == 0) {
+        } else if (string_equal(tokens[1].str, STRING("rvc"))) {
             option_stack[option_sp] |= OPTION_RVC;
-        } else if (strcmp(tokens[1].s, "norvc") == 0) {
+        } else if (string_equal(tokens[1].str, STRING("norvc"))) {
             option_stack[option_sp] &= ~OPTION_RVC;
-        } else if (strcmp(tokens[1].s, "pic") == 0) {
+        } else if (string_equal(tokens[1].str, STRING("pic"))) {
             option_stack[option_sp] |= OPTION_PIC;
-        } else if (strcmp(tokens[1].s, "nopic") == 0) {
+        } else if (string_equal(tokens[1].str, STRING("nopic"))) {
             option_stack[option_sp] &= ~OPTION_PIC;
-        } else if (strcmp(tokens[1].s, "relax") == 0) {
+        } else if (string_equal(tokens[1].str, STRING("relax"))) {
             option_stack[option_sp] |= OPTION_RELAX;
-        } else if (strcmp(tokens[1].s, "norelax") == 0) {
+        } else if (string_equal(tokens[1].str, STRING("norelax"))) {
             option_stack[option_sp] &= ~OPTION_RELAX;
         }
     } else {
-        die("error: unsupported directive %s on line %d\n", tokens[0].s, ln);
+        die("error: unsupported directive %.*s on line %d\n", LEN_DATA(tokens[0].str), ln);
     }
     return curr_addr;
 }
@@ -919,7 +794,7 @@ parse_directive(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_
 static size_t
 substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_expanded_tokens[], Token * tokens, size_t num_tokens, int ln)
 {
-    if (tokens[0].t != TOK_PSEUDO) {
+    if (tokens[0].type != TOK_PSEUDO) {
         for (size_t i = 0; i < num_tokens; i++)
             expanded_tokens[0][i] = tokens[i];
         num_expanded_tokens[0] = num_tokens;
@@ -928,7 +803,7 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
 
     // TODO: tokens_match_or_die() based on OPERANDS_
 
-    Pseudo pseudo = str_idx_in_list(tokens[0].s, pseudo_mnemonics, num_pseudo_mnemonics);
+    Pseudo pseudo = which_pseudo(tokens[0].str);
     switch (pseudo) {
         case PSEUDO_BEQZ:
             // beqz rs1, offset
@@ -1006,9 +881,9 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
         case PSEUDO_J:
             // j        offset
             // - jal    x0, offset
-            expanded_tokens[0][0] = (Token) {.t=TOK_MNEM, .s="jal"};
-            expanded_tokens[0][1] = (Token) {.t=TOK_REG, .s="x0"};
-            expanded_tokens[0][2] = (Token) {.t=',', .s=","};
+            expanded_tokens[0][0] = (Token) { .type=TOK_MNEM,   .str=STRING("jal") };
+            expanded_tokens[0][1] = (Token) { .type=TOK_REG,    .str=STRING("x0")  };
+            expanded_tokens[0][2] = (Token) { .type=',',        .str=STRING(",")   };
             expanded_tokens[0][3] = tokens[1];
             num_expanded_tokens[0] = 4;
             return 1;
@@ -1016,13 +891,13 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
         case PSEUDO_JR:
             // jr       rs1
             // - jalr   x0, 0(rs1)
-            expanded_tokens[0][0] = (Token) {.t=TOK_MNEM, .s="jalr"};
-            expanded_tokens[0][1] = (Token) {.t=TOK_REG, .s="x0"};
-            expanded_tokens[0][2] = (Token) {.t=',', .s=","};
-            expanded_tokens[0][3] = (Token) {.t=TOK_NUM, .s="0"};
-            expanded_tokens[0][4] = (Token) {.t='(', .s="("};
+            expanded_tokens[0][0] = (Token) { .type=TOK_MNEM,   .str=STRING("jalr") };
+            expanded_tokens[0][1] = (Token) { .type=TOK_REG,    .str=STRING("x0")   };
+            expanded_tokens[0][2] = (Token) { .type=',',        .str=STRING(",")    };
+            expanded_tokens[0][3] = (Token) { .type=TOK_NUM,    .str=STRING("0")    };
+            expanded_tokens[0][4] = (Token) { .type='(',        .str=STRING("(")    };
             expanded_tokens[0][5] = tokens[1];
-            expanded_tokens[0][6] = (Token) {.t=')', .s=")"};
+            expanded_tokens[0][6] = (Token) { .type=')',        .str=STRING(")")    };
             num_expanded_tokens[0] = 7;
             return 1;
 
@@ -1040,18 +915,18 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
                 //   %pcrel_hi: R_RISCV_PCREL_HI20:   delta[31 : 12] + delta[11]
                 //   %pcrel_lo: R_RISCV_PCREL_LO12_I: delta[11:0]
                 //   and delta = GOT[symbol] − pc
-                expanded_tokens[0][0] = (Token) {.t=TOK_MNEM, .s="auipc"};
+                expanded_tokens[0][0] = (Token) { .type=TOK_MNEM,   .str=STRING("auipc") };
                 expanded_tokens[0][1] = tokens[1];
-                expanded_tokens[0][2] = (Token) {.t=',', .s=","};
-                expanded_tokens[0][3] = (Token) {.t=TOK_NUM, .s="0"}; // TODO: offsetHi
+                expanded_tokens[0][2] = (Token) { .type=',',        .str=STRING(",")     };
+                expanded_tokens[0][3] = (Token) { .type=TOK_NUM,    .str=STRING("0")     }; // TODO: offsetHi
                 num_expanded_tokens[0] = 4;
-                expanded_tokens[1][0] = (Token) {.t=TOK_MNEM, .s="lw"};
+                expanded_tokens[1][0] = (Token) { .type=TOK_MNEM,   .str=STRING("lw")    };
                 expanded_tokens[1][1] = tokens[1];
-                expanded_tokens[1][2] = (Token) {.t=',', .s=","};
-                expanded_tokens[1][3] = (Token) {.t=TOK_NUM, .s="0"};
-                expanded_tokens[1][4] = (Token) {.t='(', .s="("};
+                expanded_tokens[1][2] = (Token) { .type=',',        .str=STRING(",")     };
+                expanded_tokens[1][3] = (Token) { .type=TOK_NUM,    .str=STRING("0")     };
+                expanded_tokens[1][4] = (Token) { .type='(',        .str=STRING("(")     };
                 expanded_tokens[1][5] = tokens[1];
-                expanded_tokens[1][6] = (Token) {.t=')', .s=")"};
+                expanded_tokens[1][6] = (Token) { .type=')',        .str=STRING(")")     };
                 num_expanded_tokens[1] = 7;
                 return 2;
             } else {
@@ -1062,23 +937,23 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
                 //   %pcrel_hi: R_RISCV_PCREL_HI20:   delta[31 : 12] + delta[11]
                 //   %pcrel_lo: R_RISCV_PCREL_LO12_I: delta[11:0]
                 //   and delta = symbol − pc
-                expanded_tokens[0][0] = (Token) {.t=TOK_MNEM, .s="auipc"};
+                expanded_tokens[0][0] = (Token) { .type=TOK_MNEM,   .str=STRING("auipc")        };
                 expanded_tokens[0][1] = tokens[1];
-                expanded_tokens[0][2] = (Token) {.t=',', .s=","};
-                expanded_tokens[0][3] = (Token) {.t=TOK_REL, .s="%pcrel_hi"};
-                expanded_tokens[0][4] = (Token) {.t='(', .s="("};
+                expanded_tokens[0][2] = (Token) { .type=',',        .str=STRING(",")            };
+                expanded_tokens[0][3] = (Token) { .type=TOK_REL,    .str=STRING("%pcrel_hi")    };
+                expanded_tokens[0][4] = (Token) { .type='(',        .str=STRING("(")            };
                 expanded_tokens[0][5] = tokens[3];
-                expanded_tokens[0][6] = (Token) {.t=')', .s=")"};
+                expanded_tokens[0][6] = (Token) { .type=')',        .str=STRING(")")            };
                 num_expanded_tokens[0] = 7;
-                expanded_tokens[1][0] = (Token) {.t=TOK_MNEM, .s="addi"};
+                expanded_tokens[1][0] = (Token) { .type=TOK_MNEM,   .str=STRING("addi")         };
                 expanded_tokens[1][1] = tokens[1];
-                expanded_tokens[1][2] = (Token) {.t=',', .s=","};
+                expanded_tokens[1][2] = (Token) { .type=',',        .str=STRING(",")            };
                 expanded_tokens[1][3] = tokens[1];
-                expanded_tokens[1][4] = (Token) {.t=',', .s=","};
-                expanded_tokens[1][5] = (Token) {.t=TOK_REL, .s="%pcrel_lo"};
-                expanded_tokens[1][6] = (Token) {.t='(', .s="("};
+                expanded_tokens[1][4] = (Token) { .type=',',        .str=STRING(",")            };
+                expanded_tokens[1][5] = (Token) { .type=TOK_REL,    .str=STRING("%pcrel_lo")    };
+                expanded_tokens[1][6] = (Token) { .type='(',        .str=STRING("(")            };
                 expanded_tokens[1][7] = tokens[3];
-                expanded_tokens[1][8] = (Token) {.t=')', .s=")"};
+                expanded_tokens[1][8] = (Token) { .type=')',        .str=STRING(")")            };
                 num_expanded_tokens[1] = 9;
                 return 2;
             }
@@ -1107,12 +982,12 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
         case PSEUDO_NOT:
             // not  rd, rs1
             // xori rd, rs1, -1
-            expanded_tokens[0][0] = (Token) {.t=TOK_MNEM, .s="xori"};
+            expanded_tokens[0][0] = (Token) { .type=TOK_MNEM,   .str=STRING("xori") };
             expanded_tokens[0][1] = tokens[1];
             expanded_tokens[0][2] = tokens[2];
             expanded_tokens[0][3] = tokens[3];
-            expanded_tokens[0][4] = (Token) {.t=',', .s=","};
-            expanded_tokens[0][5] = (Token) {.t=TOK_NUM, .s="-1"};
+            expanded_tokens[0][4] = (Token) { .type=',',        .str=STRING(",")    };
+            expanded_tokens[0][5] = (Token) { .type=TOK_NUM,    .str=STRING("-1")   };
             num_expanded_tokens[0] = 6;
             return 1;
         case PSEUDO_RDCYCLE:
@@ -1168,7 +1043,7 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
             // csrrs rd, timeh, x0
             assert(0); // TODO
         default:
-            die("error: unsupported pseudoinstruction '%s' on line %d\n", tokens[0].s, ln);
+            die("error: unsupported pseudoinstruction '%.*s' on line %d\n", LEN_DATA(tokens[0].str), ln);
     }
     return 0;
 }
@@ -1176,21 +1051,21 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
 static size_t
 compress_if_possible(Token * tokens, size_t num_tokens, int ln)
 {
-    Mnemonic mnemonic = str_idx_in_list(tokens[0].s, mnemonics, num_mnemonics);
+    Mnemonic mnemonic = which_mnemonic(tokens[0].str);
     assert(mnemonic < num_mnemonics);
     if (mnemonic == MNEM_ADD) {
         // add      rd, rs1, rs2
         // - c.add  rd, rs2         when rd=rs1 (invalid if rd=x0 or rs2=x0)
         // - c.mv   rd, rs2         when rd=x0  (invalid if rs2=x0)
-        int rd = reg_name_to_bits(tokens[1].s, ln);
-        int rs1 = reg_name_to_bits(tokens[3].s, ln);
-        int rs2 = reg_name_to_bits(tokens[5].s, ln);
+        int rd = reg_name_to_bits(tokens[1].str, ln);
+        int rs1 = reg_name_to_bits(tokens[3].str, ln);
+        int rs2 = reg_name_to_bits(tokens[5].str, ln);
         if ((rd == rs1) && (rd != 0) && (rs2 != 0)) {
-            strcpy(tokens[0].s, "c.add");
+            tokens[0].str = STRING("c.add");
             tokens[3] = tokens[5];
             num_tokens -= 2;
         } else if (rs1 == 0 && rs2 != 0) {
-            strcpy(tokens[0].s, "c.mv");
+            tokens[0].str = STRING("c.mv");
             tokens[3] = tokens[5];
             num_tokens -= 2;
         }
@@ -1201,77 +1076,77 @@ compress_if_possible(Token * tokens, size_t num_tokens, int ln)
         // - c.addi16sp imm         when rd=rs1=x2 (invalid if imm=0)
         // - c.addi4spn rd-8, uimm  when rs1=x2    (invalid if uimm=0)
         // NOTE: addi can also be compressed to c.mv when imm=0
-        int rd = reg_name_to_bits(tokens[1].s, ln);
-        int rs1 = reg_name_to_bits(tokens[3].s, ln);
-        int imm = parse_int_or_die(tokens[5].s, ln);
+        int rd = reg_name_to_bits(tokens[1].str, ln);
+        int rs1 = reg_name_to_bits(tokens[3].str, ln);
+        int imm = parse_int_or_die(tokens[5].str, ln);
         // TODO: confirm bounds check on imm
         if ((rs1 == 0) && (imm < 64)) {
-            strcpy(tokens[0].s, "c.li");
+            tokens[0].str = STRING("c.li");
             tokens[3] = tokens[5];
             num_tokens -= 2;
         } else if ((rd == rs1) && (imm < 64)) {
-            strcpy(tokens[0].s, "c.addi");
+            tokens[0].str = STRING("c.addi");
             tokens[3] = tokens[5];
             num_tokens -= 2;
         } else if ((rd == 2) && (rs1 == 2) && (imm != 0)) {
-            strcpy(tokens[0].s, "c.addi16sp");
+            tokens[0].str = STRING("c.addi16sp");
             tokens[1] = tokens[5];
             num_tokens -= 4;
         } else if ((rs1 == 2) && (imm != 0) && (rd >= 8)) {
-            strcpy(tokens[0].s, "c.addi4spn");
-            sprintf(tokens[1].s, "x%d", rd-8);
+            tokens[0].str = STRING("c.addi4spn");
+            tokens[1].str = reg_names[rd-8];
             // NOTE: match gcc
             //tokens[3] = tokens[5];
             //num_tokens -= 2;
         } else if (imm == 0) {
-            strcpy(tokens[0].s, "c.mv");
+            tokens[0].str = STRING("c.mv");
             num_tokens -= 2;
         }
     } else if (mnemonic == MNEM_AND) {
         // and      rd, rs1, rs2
         // - c.and  rd, rs2         when rd=rs1
-        int rd = reg_name_to_bits(tokens[1].s, ln);
-        int rs1 = reg_name_to_bits(tokens[3].s, ln);
+        int rd = reg_name_to_bits(tokens[1].str, ln);
+        int rs1 = reg_name_to_bits(tokens[3].str, ln);
         if ((rd == rs1) && (rd >= 8)) {
-            strcpy(tokens[0].s, "c.and");
-            sprintf(tokens[1].s, "x%d", rd-8);
+            tokens[0].str = STRING("c.and");
+            tokens[1].str = reg_names[rd-8];
             tokens[3] = tokens[5];
             num_tokens -= 2;
         }
     } else if (mnemonic == MNEM_ANDI) {
         // andi     rd, rs1, imm
         // - c.andi rd, imm       when rd=rs1
-        int rd = reg_name_to_bits(tokens[1].s, ln);
-        int rs1 = reg_name_to_bits(tokens[3].s, ln);
+        int rd = reg_name_to_bits(tokens[1].str, ln);
+        int rs1 = reg_name_to_bits(tokens[3].str, ln);
         if ((rd == rs1) && (rd >= 8)) {
-            strcpy(tokens[0].s, "c.andi");
-            sprintf(tokens[1].s, "x%d", rd-8);
+            tokens[0].str = STRING("c.andi");
+            tokens[1].str = reg_names[rd-8];
             tokens[3] = tokens[5];
             num_tokens -= 2;
         }
     } else if (mnemonic == MNEM_BEQ) {
         // beq      rs1, rs2, offset
         // - c.beqz rs1, offset     when rs2=x0
-        int rs2 = reg_name_to_bits(tokens[3].s, ln);
+        int rs2 = reg_name_to_bits(tokens[3].str, ln);
         if (rs2 == 0) {
-            strcpy(tokens[0].s, "c.beqz");
+            tokens[0].str = STRING("c.beqz");
             tokens[3] = tokens[5];
             num_tokens -= 2;
         }
     } else if (mnemonic == MNEM_EBREAK) {
         // c.ebreak
-        strcpy(tokens[0].s, "c.ebreak");
+        tokens[0].str = STRING("c.ebreak");
     } else if (mnemonic == MNEM_JAL) {
         // jal      rd, offset      ; if rd is omitted, x1
         // - c.j    offset          when rd=x0
         // - c.jal  offset          when rd=x1
-        int rd = reg_name_to_bits(tokens[1].s, ln);
+        int rd = reg_name_to_bits(tokens[1].str, ln);
         if (rd == 0) {
-            strcpy(tokens[0].s, "c.j");
+            tokens[0].str = STRING("c.j");
             tokens[1] = tokens[3];
             num_tokens -= 2;
         } else if (rd == 1) {
-            strcpy(tokens[0].s, "c.jal");
+            tokens[0].str = STRING("c.jal");
             tokens[1] = tokens[3];
             num_tokens -= 2;
         }
@@ -1279,15 +1154,15 @@ compress_if_possible(Token * tokens, size_t num_tokens, int ln)
         // jalr     rd, offset(rs1) ; if rd is omitted, x1
         // - c.jr   rs1             when rd=x0 and offset=0
         // - c.jalr rs1             when rd=x1 and offset=0
-        int offset = parse_int_or_die(tokens[3].s, ln);
+        int offset = parse_int_or_die(tokens[3].str, ln);
         if (offset == 0) {
-            int rd = reg_name_to_bits(tokens[1].s, ln);
+            int rd = reg_name_to_bits(tokens[1].str, ln);
             if (rd == 0) {
-                strcpy(tokens[0].s, "c.jr");
+                tokens[0].str = STRING("c.jr");
                 tokens[1] = tokens[5];
                 num_tokens -= 5;
             } else if (rd == 1) {
-                strcpy(tokens[0].s, "c.jalr");
+                tokens[0].str = STRING("c.jalr");
                 tokens[1] = tokens[5];
                 num_tokens -= 5;
             }
@@ -1295,12 +1170,12 @@ compress_if_possible(Token * tokens, size_t num_tokens, int ln)
     } else if (mnemonic == MNEM_LUI) {
         // lui      rd, imm
         // - c.lui  rd, imm     when -32 <= sext(imm) < 32
-        int imm = parse_int_or_die(tokens[3].s, ln);
+        int imm = parse_int_or_die(tokens[3].str, ln);
         if ((imm < 0) || (imm > 0xfffff))
             die("error: lui immediate must be in range 0..1048575 on line %d\n", ln);
         int imm_sext = sext(imm, 20);
         if (imm_sext >= -32 && imm_sext < 32) {
-            strcpy(tokens[0].s, "c.lui");
+            tokens[0].str = STRING("c.lui");
         }
         // TODO
     } else if (mnemonic == MNEM_SW) {
@@ -1329,20 +1204,17 @@ compress_if_possible(Token * tokens, size_t num_tokens, int ln)
 }
 
 static size_t
-get_line_of_tokens(TokenizerState * ts, Token * tokens)
+get_line_of_tokens(Tokenizer * tz, Token * tokens)
 {
     size_t num_tokens = 0;
-    TokenType tt = TOK_NONE;
-    while (tt != '\n') {
-        if (num_tokens >= MAX_TOKENS_PER_LINE)
-            die("error: too many tokens on line %d\n", ts->ln);
-        tt = (tokens[num_tokens++] = get_token(ts)).t;
-        if (tt == TOK_EOF) {
-            ts->eof = 1;
+    while (1) {
+        Token tok = get_token(tz);
+        if (tok.type == '\n' || tok.type == TOK_EOF)
             break;
-        }
+        if (num_tokens >= MAX_TOKENS_PER_LINE)
+            die("error: too many tokens on line %d\n", tz->ln);
+        tokens[num_tokens++] = tok;
     }
-    num_tokens--; // drop newline token
     return num_tokens;
 }
 
@@ -1369,33 +1241,33 @@ parse(Buffer input)
     Token tokens[MAX_TOKENS_PER_LINE];
     Token expanded_tokens[MAX_PSEUDO_EXPAND][MAX_TOKENS_PER_LINE];
     size_t num_expanded_tokens[MAX_PSEUDO_EXPAND];
-    TokenizerState ts = init_tokenizer(input);
-    while (!ts.eof) {
-        size_t num_tokens = get_line_of_tokens(&ts, tokens);
+    Tokenizer tz = init_tokenizer(input);
+    while (!tz.eof) {
+        size_t num_tokens = get_line_of_tokens(&tz, tokens);
         if (num_tokens == 0)
             continue;
 
         // labels
         Token * tokens_no_label = tokens;
-        if (num_tokens >= 2 && tokens[1].t == ':') {
-            add_symbol(tokens[0].s, curr_addr, ts.ln);
+        if (num_tokens >= 2 && tokens[1].type == ':') {
+            add_symbol(tokens[0].str, curr_addr, tz.ln);
             tokens_no_label = &tokens[2];
             num_tokens -= 2;
         }
         if (num_tokens == 0)
             continue;
 
-        size_t num_pseudo_expansions = substitute_pseudoinstr(expanded_tokens, num_expanded_tokens, tokens_no_label, num_tokens, ts.ln);
+        size_t num_pseudo_expansions = substitute_pseudoinstr(expanded_tokens, num_expanded_tokens, tokens_no_label, num_tokens, tz.ln);
 
         for (size_t r = 0; r < num_pseudo_expansions; r++) {
-            if (expanded_tokens[r][0].t == TOK_MNEM) {
+            if (expanded_tokens[r][0].type == TOK_MNEM) {
                 if (compressed_available())
-                    num_expanded_tokens[r] = compress_if_possible(expanded_tokens[r], num_expanded_tokens[r], ts.ln);
-                curr_addr = parse_instr(expanded_tokens[r], num_expanded_tokens[r], &output, curr_addr, ts.ln);
-            } else if (expanded_tokens[r][0].t == TOK_DIR) {
-                curr_addr = parse_directive(expanded_tokens[r], num_expanded_tokens[r], &output, curr_addr, ts.ln);
+                    num_expanded_tokens[r] = compress_if_possible(expanded_tokens[r], num_expanded_tokens[r], tz.ln);
+                curr_addr = parse_instr(expanded_tokens[r], num_expanded_tokens[r], &output, curr_addr, tz.ln);
+            } else if (expanded_tokens[r][0].type == TOK_DIR) {
+                curr_addr = parse_directive(expanded_tokens[r], num_expanded_tokens[r], &output, curr_addr, tz.ln);
             } else {
-                die("error: cannot parse line %d\n", ts.ln);
+                die("error: cannot parse line %d\n", tz.ln);
             }
         }
     }
@@ -1403,11 +1275,7 @@ parse(Buffer input)
     resolve_refs(&output);
     //print_refs_and_symbols();
 
-    for(size_t i = 0; i < num_symbols; i++)
-        free(symbols[i].s);
     free(symbols);
-    for(size_t i = 0; i < num_refs; i++)
-        free(refs[i].label);
     free(refs);
 
     return output;
@@ -1513,6 +1381,10 @@ parse_isa_string(const char * isa_str)
     }
 }
 
+#ifndef NRUNS
+#define NRUNS 2
+#endif
+
 int
 main(int argc, char * argv[])
 {
@@ -1539,6 +1411,23 @@ main(int argc, char * argv[])
     print_output(stdout, output);
     free(file_contents.p);
     free(output.p);
+
+#if PERF_TEST
+    // TODO: automatically detect when min time has been reached
+    Timer timer;
+    long min_run_time = LONG_MAX;
+    for (int run = 0; run < NRUNS; run++) {
+        timer_start(&timer);
+        output = parse(file_contents);
+        timer_stop(&timer);
+        free(output.p);
+        long run_time = get_elapsed_us(&timer);
+        if (run_time < min_run_time)
+            min_run_time = run_time;
+        //fprintf(stderr, "elapsed %ldus\n", run_time);
+    }
+    fprintf(stderr, "min time: %ldus\n", min_run_time);
+#endif
 
     return 0;
 }

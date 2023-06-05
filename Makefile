@@ -1,20 +1,23 @@
 CC = gcc
 CPPFLAGS=
-CFLAGS = -Wall -Wextra -ggdb -MMD
-LDFLAGS =
+CFLAGS = -std=c99 -pedantic -Wall -Wextra -MMD
+#CFLAGS += -ggdb
+CFLAGS += -O3
+#CFLAGS += -g -pg
+#LDFLAGS = -pg
 LDLIBS =
-
-# TODO: debug, release
-# TODO: test
-# NOTE: $(info SRC is $(SRC))
 
 BUILD_DIR = ./build
 SRC_DIR = ./src
-TARGET = a.out
+TARGET = rv_asm
 
 SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(SRC:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
 DEP = $(OBJ:%.o=%.d)
+
+#NRUNS ?= 1
+#CFLAGS += -DNRUNS=$(NRUNS)
+#CFLAGS += -DPERF_TEST
 
 ASM ?= insert_sort
 

@@ -1,3 +1,4 @@
+#include "risc_v.h"
 #include "common.h"
 #include "tokenizer.h"
 #include <string.h>
@@ -8,394 +9,233 @@
 #include <stdbool.h>
 
 #if 1
-const char * token_strs[] = {
-    [TOK_NONE] = "NONE",
-    [','] = ",",
-    [':'] = ":",
-    ['('] = ",",
-    [')'] = ",",
-    ['\n'] = "\\n",
-    [TOK_DIR] = "DIR",
-    [TOK_MNEM] = "MNEM",
-    [TOK_PSEUDO] = "PSEUDO",
-    [TOK_REG] = "REG",
-    [TOK_CSR] = "CSR",
-    [TOK_NUM] = "NUM",
-    [TOK_IDENT] = "IDENT",
-    [TOK_STRING] = "STRING",
-    [TOK_EOF] = "EOF",
-    [TOK_INVALID] = "INVALID"
-};
-
-const char * state_strs[] = {
-    "INIT",
-    "PERIOD",
-    "DIR",
-    "LPAREN",
-    "RPAREN",
-    "NEWLINE",
-    "COLON",
-    "COMMA",
-    "DIGIT",
-    "ALPHA",
-    "DQUOTE",
-    "CLOSE_QUOTE",
-    "ERR"
+static const char * token_strs[] = {
+    [TOK_NONE]      = "NONE",
+    [',']           = ",",
+    [':']           = ":",
+    ['(']           = "(",
+    [')']           = ")",
+    ['\n']          = "\\n",
+    [TOK_DIR]       = "DIR",
+    [TOK_MNEM]      = "MNEM",
+    [TOK_PSEUDO]    = "PSEUDO",
+    [TOK_REG]       = "REG",
+    [TOK_CSR]       = "CSR",
+    [TOK_NUM]       = "NUM",
+    [TOK_IDENT]     = "IDENT",
+    [TOK_STRING]    = "STRING",
+    [TOK_EOF]       = "EOF"
 };
 #endif
 
-const char * reg_names[] = {
-    "x0",
-    "x1", "ra",
-    "x2", "sp",
-    "x3", "gp",
-    "x4", "tp",
-    "x5", "t0",
-    "x6", "t1",
-    "x7", "t2",
-    "x8", "s0", "fp",
-    "x9", "s1",
-    "x10", "a0",
-    "x11", "a1",
-    "x12", "a2",
-    "x13", "a3",
-    "x14", "a4",
-    "x15", "a5",
-    "x16", "a6",
-    "x17", "a7",
-    "x18", "s2",
-    "x19", "s3",
-    "x20", "s4",
-    "x21", "s5",
-    "x22", "s6",
-    "x23", "s7",
-    "x24", "s8",
-    "x25", "s9",
-    "x26", "s10",
-    "x27", "s11",
-    "x28", "t3",
-    "x29", "t4",
-    "x30", "t5",
-    "x31", "t6"
+#if 0
+#define X CONST_STRING
+static String directives[] = {
+    X(".text"),
+    X(".data"),
+    X(".bss"),
+    X(".section"),
+    X(".align"),
+    X(".balign"),
+    X(".globl"),
+    X(".string"),
+    X(".byte"),
+    X(".half"),
+    X(".word"),
+    X(".dword"),
+    X(".float"),
+    X(".double"),
+    X(".option")
 };
+#undef X
 
-const size_t num_reg_names = NELEM(reg_names);
+static const size_t num_directives = NELEM(directives);
+#endif
 
-const char * directives[] = {
-    ".text",
-    ".data",
-    ".bss",
-    ".section",
-    ".align",
-    ".balign",
-    ".globl",
-    ".string",
-    ".byte",
-    ".half",
-    ".word",
-    ".dword",
-    ".float",
-    ".double",
-    ".option"
+#define X CONST_STRING
+static String csr_names[] = {
+    X("mstatus"),
+    X("mhartid")
 };
+#undef X
 
-const size_t num_directives = NELEM(directives);
+static const size_t num_csr_names = NELEM(csr_names);
 
-const char * csr_names[] = {
-    "mstatus",
-    "mhartid"
-};
-
-const size_t num_csr_names = NELEM(csr_names);
-
-TokenizerState
+Tokenizer
 init_tokenizer(Buffer buffer)
 {
-    TokenizerState ts = {
-        .buffer = buffer,
-        .state = ST_INIT,
-        .ln = 0,
-        .eof = false,
-        .buf_pos = 0,
-        .emit_tok = false,
-        .tok_begin = 0,
-        .tok_end = 0
+    return (Tokenizer) { .buffer = buffer };
+}
+
+static Token
+init_token(Tokenizer * tz, TokenType type)
+{
+    return (Token) {
+        .type = type,
+        .str = (String) {
+            .data = &tz->buffer.p[tz->pos],
+            .len = 0
+        }
     };
-    return ts;
 }
 
-static bool
-is_mnemonic(const char * s)
+static void
+tokenizer_advance(Tokenizer * tz)
 {
-    return str_in_list(s, mnemonics, num_mnemonics);
+    tz->pos++;
 }
 
-static bool
-is_pseudo(const char * s)
+static char
+tokenizer_get_curr_char(Tokenizer * tz)
 {
-    return str_in_list(s, pseudo_mnemonics, num_pseudo_mnemonics);
+    if (tz->pos >= tz->buffer.len)
+        return '\0';
+    return tz->buffer.p[tz->pos];
 }
 
-static bool
-is_reg(const char * s)
+static Token
+get_mnemonic_etc(Tokenizer * tz)
 {
-    return str_in_list(s, reg_names, num_reg_names);
+    Token tok = init_token(tz, TOK_NONE);
+
+    bool contains_period = false;
+    while (1) {
+        char c = tokenizer_get_curr_char(tz);
+        if (!isalnum(c) && c != '_' && c != '.')
+            break;
+        if (c == '.')
+            contains_period = true;
+        tokenizer_advance(tz);
+        tok.str.len++;
+    }
+
+#define CHECK_LIST(LIST, TYPE) \
+    if (tok.type == TOK_NONE) { \
+        for (size_t i = 0; i < num_ ## LIST; i++) { \
+            if (string_equal(tok.str, LIST[i])) { \
+                tok.type = TYPE; \
+                break; \
+            } \
+        } \
+    }
+    CHECK_LIST(reg_names,           TOK_REG);
+    CHECK_LIST(mnemonics,           TOK_MNEM);
+    CHECK_LIST(pseudo_mnemonics,    TOK_PSEUDO);
+    CHECK_LIST(csr_names,           TOK_CSR);
+#undef CHECK_LIST
+    if (tok.type == TOK_NONE) {
+        if (contains_period)
+            assert(0); // TODO: error-handling
+        tok.type = TOK_IDENT;
+    }
+    
+    return tok;
 }
 
-static bool
-is_csr(const char * s)
+// TODO: handle base 8 and 16
+static Token
+get_number(Tokenizer * tz)
 {
-    return str_in_list(s, csr_names, num_csr_names);
+    Token tok = init_token(tz, TOK_NUM);
+    //bool negative = false;
+    if (tokenizer_get_curr_char(tz) == '-') {
+        //negative = true;
+        tokenizer_advance(tz);
+        tok.str.len++;
+    }
+    while (1) {
+        char c = tokenizer_get_curr_char(tz);
+        if (!isdigit(c))
+            break;
+        tokenizer_advance(tz);
+        tok.str.len++;
+    }
+    return tok;
 }
 
-static State
-common_next_state(char c)
+static Token
+get_string(Tokenizer * tz)
 {
-    State next_state;
-    if (isalpha(c) || c == '_') {
-        next_state = ST_ALPHA;
-    } else if (c == '"') {
-        next_state = ST_DQUOTE;
-    } else if (c == '-') {
-        next_state = ST_MINUS;
-    } else if (c == '0') {
-        next_state = ST_ZERO;
-    } else if (c >= '1' && c <= '9') {
-        next_state = ST_DEC;
-    } else if (c == '.') {
-        next_state = ST_PERIOD;
-    } else if (c == '(') {
-        next_state = ST_LPAREN;
-    } else if (c == ')') {
-        next_state = ST_RPAREN;
-    } else if (c == '\n') {
-        next_state = ST_NEWLINE;
-    } else if (c == ':') {
-        next_state = ST_COLON;
-    } else if (c == ',') {
-        next_state = ST_COMMA;
-    } else if (c == ' ') {
-        next_state = ST_INIT;
-    } else {
-        //fprintf(stderr, "prev_token: %s\n", prev_token);
-        next_state = ST_ERR;
-        //assert(0);
+    tokenizer_advance(tz); // discard "
+    Token tok = init_token(tz, TOK_STRING);
+    bool prev_esc = 0;
+    while (1) {
+        char c = tokenizer_get_curr_char(tz);
+        tokenizer_advance(tz);
+        if ((c == '"' && !prev_esc) || c == '\0')
+            break;
+        prev_esc = c == '\\';
+        tok.str.len++;
     }
-    return next_state;
+    return tok;
 }
 
-
-static TokenType
-next_char(TokenizerState * ts)
+static Token
+get_directive(Tokenizer * tz)
 {
-    if (ts->buf_pos >= ts->buffer.len) {
-        ts->tok_begin = 0;
-        ts->tok_end = 0;
-        return TOK_EOF;
-    }
-    char c = ts->buffer.p[ts->buf_pos];
-    State next_state = ts->state;
+    Token tok = init_token(tz, TOK_DIR);
 
-    if (ts->emit_tok) {
-        ts->tok_begin = ts->buf_pos-1;
-    }
+    tokenizer_advance(tz); // skip .
+    tok.str.len++;
 
-    TokenType tok_typ = TOK_NONE;
-
-    /* TODO: maybe emit the current token? */
-    if (c == '\0') {
-        die("error: nul byte on line %d\n", ts->ln+1);
+    while (1) {
+        char c = tokenizer_get_curr_char(tz);
+        if (!isalnum(c))
+            break;
+        tokenizer_advance(tz);
+        tok.str.len++;
     }
 
-    switch (ts->state) {
-        case ST_INIT:
-            next_state = common_next_state(c);
-            break;
-        case ST_MINUS:
-            next_state = common_next_state(c);
-            if (next_state == ST_MINUS)
-                assert(0);
-            break;
-        case ST_ZERO:
-            next_state = common_next_state(c);
-            if (c == 'x' || c == 'X') {
-                next_state = ST_HEX;
-            } else if (c >= '0' && c <= '7') {
-                next_state = ST_OCT;
-            }
-            if (next_state != ST_HEX && next_state != ST_OCT)
-                tok_typ = TOK_NUM;
-            break;
-        case ST_DEC:
-            if (isdigit(c)) {
-                next_state = ST_DEC;
-            } else if (isblank(c)) {
-                next_state = ST_INIT;
-            } else if (c == '(') {
-                next_state = ST_LPAREN;
-            } else if (c == ')') {
-                next_state = ST_RPAREN;
-            } else if (c == '\n') {
-                next_state = ST_NEWLINE;
-            } else if (c == ',') {
-                next_state = ST_COMMA;
-            } else if (c == ':') {
-                next_state = ST_COLON;
-            } else {
-                next_state = ST_ERR;
-                assert(0);
-            }
-            if (next_state != ST_DEC)
-                tok_typ = TOK_NUM;
-            break;
-        case ST_OCT:
-            next_state = common_next_state(c);
-            if (c >= '0' && c <= '7') {
-                next_state = ST_OCT;
-            }
-            if (next_state != ST_OCT)
-                tok_typ = TOK_NUM;
-            break;
-        case ST_HEX:
-            next_state = common_next_state(c);
-            c = tolower(c);
-            if (isdigit(c) || (c >= 'a' && c <= 'f')) {
-                next_state = ST_HEX;
-            }
-            if (next_state != ST_HEX)
-                tok_typ = TOK_NUM;
-            break;
-        case ST_ALPHA:
-            if (isalnum(c) || c == '_' || c == '.') {
-                next_state = ST_ALPHA;
-            } else if (isblank(c)) {
-                next_state = ST_INIT;
-            } else if (c == '(') {
-                next_state = ST_LPAREN;
-            } else if (c == ')') {
-                next_state = ST_RPAREN;
-            } else if (c == '\n') {
-                next_state = ST_NEWLINE;
-            } else if (c == ',') {
-                next_state = ST_COMMA;
-            } else if (c == ':') {
-                next_state = ST_COLON;
-            } else {
-                next_state = ST_ERR;
-                //assert(0);
-            }
-            if (next_state != ST_ALPHA) {
-                // TODO: this is an ugly hack
-                char * curr_token = ts->buffer.p + ts->tok_begin;
-                char t = ts->buffer.p[ts->buf_pos];
-                ts->buffer.p[ts->buf_pos] = '\0';
-                if (is_reg(curr_token))
-                    tok_typ = TOK_REG;
-                else if (is_csr(curr_token))
-                    tok_typ = TOK_CSR;
-                else if (is_mnemonic(curr_token))
-                    tok_typ = TOK_MNEM;
-                else if (is_pseudo(curr_token))
-                    tok_typ = TOK_PSEUDO;
-                else
-                    tok_typ = TOK_IDENT;
-                ts->buffer.p[ts->buf_pos] = t;
-            }
-            break;
-        case ST_DQUOTE:
-            if (c == '"') {
-                next_state = ST_CLOSE_QUOTE;
-            } else if (c == '\\') {
-                // TODO: support escape sequences
-                assert(0);
-            }
-            break;
-        case ST_CLOSE_QUOTE:
-            next_state = common_next_state(c);
-            tok_typ = TOK_STRING;
-            break;
-        case ST_LPAREN:
-            next_state = common_next_state(c);
-            tok_typ = '(';
-            break;
-        case ST_RPAREN:
-            next_state = common_next_state(c);
-            tok_typ = ')';
-            break;
-        case ST_NEWLINE:
-            next_state = common_next_state(c);
-            ts->ln++;
-            tok_typ = '\n';
-            break;
-        case ST_COLON:
-            next_state = common_next_state(c);
-            tok_typ = ':';
-            break;
-        case ST_COMMA:
-            next_state = common_next_state(c);
-            tok_typ = ',';
-            break;
-        case ST_PERIOD:
-            if (isalnum(c)) {
-                next_state = ST_DIR;
-            } else {
-                next_state = ST_ERR;
-                assert(0);
-            }
-            break;
-        case ST_DIR:
-            if (isalpha(c)) {
-                next_state = ST_DIR;
-            } else if (isblank(c)) {
-                next_state = ST_INIT;
-            } else if (c == '\n') {
-                next_state = ST_NEWLINE;
-            } else {
-                next_state = ST_ERR;
-                assert(0);
-            }
-            // TODO: check directives list
-            if (next_state != ST_DIR)
-                tok_typ = TOK_DIR;
-            break;
-        case ST_ERR:
-            fprintf(stdout, "error: invalid lex state\n");
-            assert(0);
-            break;
-        default:
-            assert(0);
-            break;
-    }
+    // TODO: check directives list
 
-    if (tok_typ != TOK_NONE) {
-        ts->tok_end = ts->buf_pos;
-        ts->emit_tok = true;
-    } else {
-        ts->emit_tok = false;
-    }
-
-    if (ts->state == ST_INIT && next_state != ST_INIT) {
-        assert(ts->emit_tok == false);
-        ts->tok_begin = ts->buf_pos;
-    }
-
-    ts->state = next_state;
-    ts->buf_pos++;
-    //printf("'%c'\t%s\t%s\n", c, state_strs[ts->state], token_strs[tok_typ]);
-    return tok_typ;
+    return tok;
 }
 
-/* TODO: this involves excessive copying of return values */
+static Token
+get_syntax(Tokenizer * tz)
+{
+    Token tok = init_token(tz, TOK_NONE);
+    tok.type = tokenizer_get_curr_char(tz);
+    tokenizer_advance(tz);
+    tok.str.len = 1;
+    return tok;
+}
+
+void
+print_token(Token tok)
+{
+    fprintf(stderr, "%s '%.*s'\n", token_strs[tok.type], (int) tok.str.len, tok.str.data);
+}
+
+// TODO: error-handling
 Token
-get_token(TokenizerState * ts)
+get_token(Tokenizer * tz)
 {
     Token tok;
-    do  {
-        tok.t = next_char(ts);
-    } while (tok.t == TOK_NONE);
-    size_t tok_len = ts->tok_end - ts->tok_begin;
-    strncpy(tok.s, ts->buffer.p + ts->tok_begin, tok_len);
-    tok.s[tok_len] = '\0';
-    //printf("%s(%s) ", token_strs[tok.t], tok.s);
+
+    char c = tokenizer_get_curr_char(tz);
+    while (c == ' ' || c == '\t') {
+        tokenizer_advance(tz);
+        c = tokenizer_get_curr_char(tz);
+    }
+
+    if (c == '\0') {
+        tz->eof = true;
+        tok = (Token) { .type = TOK_EOF, .str = STRING("") };
+    } else if (isalpha(c) || c == '_') {
+        tok = get_mnemonic_etc(tz);
+    } else if (isdigit(c) || c == '-') {
+        tok = get_number(tz);
+    } else if (c == '"') {
+        tok = get_string(tz);
+    } else if (c == '.') {
+        tok = get_directive(tz);
+    } else {
+        tok = get_syntax(tz);
+        if (tok.type == '\n')
+            tz->ln++;
+    }
+
+    //print_token(tok);
     return tok;
 }

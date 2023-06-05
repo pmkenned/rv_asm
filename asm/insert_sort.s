@@ -2,6 +2,8 @@
     .align 2
     .globl _start
 
+    .option norvc
+
 _start:
     addi a1,x0,5
     addi a0,x0,92

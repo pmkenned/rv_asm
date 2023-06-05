@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 199309L
 #include "common.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,6 +11,14 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
+
+int
+string_equal(String s1, String s2)
+{
+    if (s1.len != s2.len)
+        return 0;
+    return !strncmp(s1.data, s2.data, s1.len);
+}
 
 void
 die(const char * fmt, ...)
@@ -40,27 +49,6 @@ unpack_le(void * p, size_t n)
         x |= ((uint8_t *)p)[i] << 8*i;
     }
     return x;
-}
-
-/* return index of element in list if present; otherwise, return n */
-size_t
-str_idx_in_list(const char * str, const char * list[], size_t n)
-{
-    size_t i;
-    for (i = 0; i < n; i++)
-        if (strcmp(str, list[i]) == 0)
-            break;
-    return i;
-}
-
-bool
-str_in_list(const char * str, const char * list[], size_t n)
-{
-    size_t i;
-    for (i = 0; i < n; i++)
-        if (strcmp(str, list[i]) == 0)
-            return true;
-    return false;
 }
 
 Buffer
@@ -105,9 +93,13 @@ parse_int_strerror(int errnum)
 }
 
 int
-parse_int(const char * s, int * x) {
+parse_int(String str, int * x) {
     char * end;
     errno = 0;
+    char s[16];
+    assert(str.len+1 < sizeof(s));
+    memcpy(s, str.data, str.len);
+    s[str.len] = '\0';
     const long sl = strtol(s, &end, 0);
     if (end == s)
         return -1;
