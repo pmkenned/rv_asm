@@ -207,8 +207,6 @@ sret
 srl         rd, rs1, rs2
 srli        rd, rs1, shamt
     c.srli  rd, shamt
-sub         rd, rs1, rs2        [pseudo]
-    c.sub rd, rs2
 tail        symbol              [pseudo]
     auipc x6, offsetHi; jalr x0, offsetLo(x6)
 wfi
@@ -277,7 +275,7 @@ remw        rd, rs1, rs2
 
 ### RV32F and RV64F:
 ```
-fabs.s      rd, rs1
+fabs.s      rd, rs1				[pseudo]
 fadd.s      rd, rs1, rs2
 fclass.s    rd, rs1, rs2
 fcvt.s.w    rd, rs1, rs2
@@ -296,6 +294,7 @@ fmax.s      rd, rs1, rs2
 fmin.s      rd, rs1, rs2
 fmsub.s     rd, rs1, rs2, rs3
 fmul.s      rd, rs1, rs2
+fmv.s		rd, rs1				[pseudo]
 fmv.w.x     rd, rs1, rs2
 fmv.x.w     rd, rs1, rs2
 fneg.s      rd, rs1             [pseudo]
@@ -334,7 +333,7 @@ fcvt.s.lu   rd, rs1, rs2
 
 ### RV32D and RV64D:
 ```
-fabs.d      rd, rs1
+fabs.d      rd, rs1				[pseudo]
 fadd.d      rd, rs1, rs2
 fclass.d    rd, rs1, rs2
 fcvt.d.s    rd, rs1, rs2

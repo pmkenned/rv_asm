@@ -58,7 +58,7 @@ String reg_names[] = {
     X("x30"),
     X("x31"),
 
-    X("fp"), // same as s0
+    X("zero"),
     X("ra"),
     X("sp"),
     X("gp"),
@@ -89,7 +89,8 @@ String reg_names[] = {
     X("t3"),
     X("t4"),
     X("t5"),
-    X("t6")
+    X("t6"),
+    X("fp") // same as s0
 };
 #undef X
 

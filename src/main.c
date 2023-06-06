@@ -100,6 +100,8 @@ reg_name_to_bits(String reg_name, int ln)
         if (!strncmp(reg_name.data, "fp", 2)) return 8;
     }
 
+    if (string_equal(reg_name, STRING("zero"))) return 0;
+
     int n;
     String reg_num_str = { .data = reg_name.data+1, .len = reg_name.len-1 };
     if (parse_int(reg_num_str, &n) < 0)
@@ -132,7 +134,7 @@ error:
 static int
 reg_name_to_bits(String reg_name, int ln)
 {
-    assert(num_reg_names == 64);
+    assert(num_reg_names == 65);
     size_t i;
     for (i = 0; i < num_reg_names; i++) {
         if (string_equal(reg_name, reg_names[i]))
@@ -140,10 +142,10 @@ reg_name_to_bits(String reg_name, int ln)
     }
     if (i < 32)
         return i;
-    else if (i == 32)
-        return 8;
     else if (i < 64)
         return i-32;
+    else if (i == 64) // fp
+        return 0;
     die("error: invalid register name '%.*s' on line %d\n", LEN_DATA(reg_name), ln);
     return 0;
 }
@@ -761,6 +763,9 @@ parse_directive(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_
     } else if (string_equal(tokens[0].str, STRING(".data"))) {
         tokens_match_or_die(tokens, num_tokens, "d", ln);
         // TODO
+    } else if (string_equal(tokens[0].str, STRING(".bss"))) {
+        tokens_match_or_die(tokens, num_tokens, "d", ln);
+        // TODO
     } else if (string_equal(tokens[0].str, STRING(".option"))) {
         tokens_match_or_die(tokens, num_tokens, "d i", ln);
         if (string_equal(tokens[1].str, STRING("push"))) {
@@ -785,6 +790,16 @@ parse_directive(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_
         } else if (string_equal(tokens[1].str, STRING("norelax"))) {
             option_stack[option_sp] &= ~OPTION_RELAX;
         }
+    } else if (string_equal(tokens[0].str, STRING(".file"))) {
+        // TODO
+    } else if (string_equal(tokens[0].str, STRING(".attribute"))) {
+        // TODO
+    } else if (string_equal(tokens[0].str, STRING(".type"))) {
+        // TODO
+    } else if (string_equal(tokens[0].str, STRING(".size"))) {
+        // TODO
+    } else if (string_equal(tokens[0].str, STRING(".zero"))) {
+        // TODO
     } else {
         die("error: unsupported directive %.*s on line %d\n", LEN_DATA(tokens[0].str), ln);
     }
@@ -965,23 +980,36 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
             assert(0); // TODO
         case PSEUDO_LLA:
             // lla      rd, symbol
-            // auipc    rd, offsetHi; addi rd, rd, offsetLo
-            assert(0); // TODO
+            // - auipc    rd, offsetHi
+            // - addi rd, rd, offsetLo
+            expanded_tokens[0][0] = (Token) { .type=TOK_MNEM,   .str=STRING("auipc")};
+            expanded_tokens[0][1] = tokens[1];
+            expanded_tokens[0][2] = (Token) { .type=',',        .str=STRING(",")    };
+            expanded_tokens[0][3] = (Token) { .type=TOK_NUM,    .str=STRING("0")    }; // TODO: offsetHi
+            num_expanded_tokens[0] = 4;
+            expanded_tokens[1][0] = (Token) { .type=TOK_MNEM,   .str=STRING("addi") };
+            expanded_tokens[1][1] = tokens[1];
+            expanded_tokens[1][2] = (Token) { .type=',',        .str=STRING(",")    };
+            expanded_tokens[1][3] = tokens[1];
+            expanded_tokens[1][4] = (Token) { .type=',',        .str=STRING(",")    };
+            expanded_tokens[1][5] = (Token) { .type=TOK_NUM,    .str=STRING("0")    }; // TODO: offsetLo
+            num_expanded_tokens[1] = 6;
+            return 2;
         case PSEUDO_MV:
             // mv   rd, rs1
-            // addi rd, rs1, 0
+            // - addi rd, rs1, 0
             assert(0); // TODO
         case PSEUDO_NEG:
             // neg  rd, rs2
-            // sub  rd, x0, rs2
+            // - sub  rd, x0, rs2
             assert(0); // TODO
         case PSEUDO_NOP:
             // nop
-            // addi x0, x0, 0
+            // - addi x0, x0, 0
             assert(0); // TODO
         case PSEUDO_NOT:
             // not  rd, rs1
-            // xori rd, rs1, -1
+            // - xori rd, rs1, -1
             expanded_tokens[0][0] = (Token) { .type=TOK_MNEM,   .str=STRING("xori") };
             expanded_tokens[0][1] = tokens[1];
             expanded_tokens[0][2] = tokens[2];
@@ -992,56 +1020,90 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
             return 1;
         case PSEUDO_RDCYCLE:
             // rdcycle
-            // csrrs rd, cycle, x0
+            // - csrrs rd, cycle, x0
             assert(0); // TODO
         case PSEUDO_RDINSTRET:
             // rdinstret
-            // csrrs rd, instret, x0
+            // - csrrs rd, instret, x0
             assert(0); // TODO
         case PSEUDO_RDTIME:
             // rdtime
-            // csrrs rd, time, x0
+            // - csrrs rd, time, x0
             assert(0); // TODO
         case PSEUDO_RET:
             // ret
-            // jalr x0, 0(x1)
+            // - jalr x0, 0(x1)
             assert(0); // TODO
         case PSEUDO_SEQZ:
             // seqz     rd, rs1
-            // sltiu    rd, rs1, 1
+            // - sltiu    rd, rs1, 1
             assert(0); // TODO
         case PSEUDO_SGTZ:
             // sgtz rd, rs2
-            // slt  rd, x0, rs2
+            // - slt  rd, x0, rs2
             assert(0); // TODO
         case PSEUDO_SLTZ:
             // sltz rd, rs1
-            // slt  rd, rs1, x0
+            // - slt  rd, rs1, x0
             assert(0); // TODO
         case PSEUDO_SNEZ:
             // snez rd, rs2
-            // sltu rd, x0, rs2
+            // - sltu rd, x0, rs2
             assert(0); // TODO
-        case PSEUDO_SUB:
-            // sub      rd, rs1, rs2
-            // c.sub    rd, rs2
-            assert(0); // TODO
+        case PSEUDO_SW:
+            // sw       rd, symbol[, rt]
+            // - auipc   rt, %pcrel_hi(symbol)
+            // - sw      rd, %pcrel_lo(symbol)(rt)
+            expanded_tokens[0][0] = (Token) { .type=TOK_MNEM,   .str=STRING("auipc")};
+            expanded_tokens[0][1] = tokens[1];
+            expanded_tokens[0][2] = (Token) { .type=',',        .str=STRING(",")    };
+            expanded_tokens[0][3] = (Token) { .type=TOK_NUM,    .str=STRING("0")    }; // TODO: pcrel_hi(symbol)
+            num_expanded_tokens[0] = 4;
+            expanded_tokens[1][0] = (Token) { .type=TOK_MNEM,   .str=STRING("sw")   };
+            expanded_tokens[1][1] = tokens[1];
+            expanded_tokens[1][2] = (Token) { .type=',',        .str=STRING(",")    };
+            expanded_tokens[1][3] = (Token) { .type=TOK_NUM,    .str=STRING("0")    }; // TODO
+            expanded_tokens[1][4] = (Token) { .type='(',        .str=STRING("(")    };
+            expanded_tokens[1][5] = num_tokens == 6 ? tokens[5] : tokens[1];
+            expanded_tokens[1][6] = (Token) { .type=')',        .str=STRING(")")    };
+            num_expanded_tokens[1] = 7;
+            return 2;
         case PSEUDO_TAIL:
             // tail     symbol
-            // auipc    x6, offsetHi; jalr x0, offsetLo(x6)
+            // - auipc    x6, offsetHi
+            // - jalr x0, offsetLo(x6)
             assert(0); // TODO
         case PSEUDO_RDCYCLEH:
             // rdcycleh
-            // csrrs rd, cycleh, x0
+            // - csrrs rd, cycleh, x0
             assert(0); // TODO
         case PSEUDO_RDINSTRETH:
             // rdinstreth
-            // csrrs rd, instreth, x0
+            // - csrrs rd, instreth, x0
             assert(0); // TODO
         case PSEUDO_RDTIMEH:
             // rdtimeh
-            // csrrs rd, timeh, x0
+            // - csrrs rd, timeh, x0
             assert(0); // TODO
+        case PSEUDO_NEGW:
+            assert(0);
+        case PSEUDO_SEXT_W:
+            // sext.w   rd, rs1
+            // - addiw rd, rs1, 0
+            expanded_tokens[0][0] = (Token) { .type=TOK_MNEM,   .str=STRING("addiw")};
+            expanded_tokens[0][1] = tokens[1];
+            expanded_tokens[0][2] = (Token) { .type=',',        .str=STRING(",")    };
+            expanded_tokens[0][3] = tokens[3];
+            expanded_tokens[0][4] = (Token) { .type=',',        .str=STRING(",")    };
+            expanded_tokens[0][5] = (Token) { .type=TOK_NUM,    .str=STRING("0")    };
+            num_expanded_tokens[0] = 6;
+            return 1;
+        case PSEUDO_LWU:
+            assert(0);
+        case PSEUDO_LD:
+            assert(0);
+        case PSEUDO_SD:
+            assert(0);
         default:
             die("error: unsupported pseudoinstruction '%.*s' on line %d\n", LEN_DATA(tokens[0].str), ln);
     }

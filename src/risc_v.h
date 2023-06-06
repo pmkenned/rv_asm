@@ -12,7 +12,7 @@ extern const size_t num_reg_names;
 
 extern uint32_t opcodes[];
 
-#define PSEUDO_LIST \
+#define PSEUDO_LIST_32I_64I \
     X(PSEUDO_BEQZ,          "beqz",         OPERANDS_REG_OFFSET      ) \
     X(PSEUDO_BGEZ,          "bgez",         OPERANDS_REG_OFFSET      ) \
     X(PSEUDO_BGT,           "bgt",          OPERANDS_REG_REG_OFFSET  ) \
@@ -48,13 +48,50 @@ extern uint32_t opcodes[];
     X(PSEUDO_SGTZ,          "sgtz",         OPERANDS_REG_REG         ) \
     X(PSEUDO_SLTZ,          "sltz",         OPERANDS_REG_REG         ) \
     X(PSEUDO_SNEZ,          "snez",         OPERANDS_REG_REG         ) \
-    X(PSEUDO_SUB,           "sub",          OPERANDS_REG_REG_REG     ) \
     X(PSEUDO_TAIL,          "tail",         OPERANDS_SYMBOL          ) \
+    X(PSEUDO_LB,            "lb",           OPERANDS_REG_SYMBOL_REG  ) \
+    X(PSEUDO_LBU,           "lbu",          OPERANDS_REG_SYMBOL_REG  ) \
+    X(PSEUDO_LH,            "lh",           OPERANDS_REG_SYMBOL_REG  ) \
+    X(PSEUDO_LHU,           "lhu",          OPERANDS_REG_SYMBOL_REG  ) \
+    X(PSEUDO_LW,            "lw",           OPERANDS_REG_SYMBOL_REG  ) \
+    X(PSEUDO_SB,            "sb",           OPERANDS_REG_SYMBOL_REG  ) \
+    X(PSEUDO_SH,            "sh",           OPERANDS_REG_SYMBOL_REG  ) \
+    X(PSEUDO_SW,            "sw",           OPERANDS_REG_SYMBOL_REG  )
+
+#define PSEUDO_LIST_32I \
     X(PSEUDO_RDCYCLEH,      "rdcycleh",     OPERANDS_NONE            ) \
     X(PSEUDO_RDINSTRETH,    "rdinstreth",   OPERANDS_NONE            ) \
     X(PSEUDO_RDTIMEH,       "rdtimeh",      OPERANDS_NONE            )
 
-#define INST_LIST_I \
+#define PSEUDO_LIST_64I \
+    X(PSEUDO_NEGW,          "negw",         OPERANDS_REG_REG         ) \
+    X(PSEUDO_SEXT_W,        "sext.w",       OPERANDS_REG_REG         ) \
+    X(PSEUDO_LWU,           "lwu",          OPERANDS_REG_SYMBOL_REG  ) \
+    X(PSEUDO_LD,            "ld",           OPERANDS_REG_SYMBOL_REG  ) \
+    X(PSEUDO_SD,            "sd",           OPERANDS_REG_SYMBOL_REG  ) \
+
+#define PSEUDO_LIST_32F_64F \
+    X(PSEUDO_FABS_S,        "fabs.s",       OPERANDS_REG_REG         ) \
+    X(PSEUDO_FMV_S,         "fmv.s",        OPERANDS_REG_REG         ) \
+    X(PSEUDO_FNEG_S,        "fneg.s",       OPERANDS_REG_REG         ) \
+    X(PSEUDO_FRCSR,         "frcsr",        OPERANDS_REG             ) \
+    X(PSEUDO_FRFLAGS,       "frflags",      OPERANDS_REG             ) \
+    X(PSEUDO_FRRM,          "frrm",         OPERANDS_REG             ) \
+    X(PSEUDO_FSCSR,         "fscsr",        OPERANDS_REG_REG         ) \
+    X(PSEUDO_FSFLAGS,       "fsflags",      OPERANDS_REG_REG         ) \
+    X(PSEUDO_FSRM,          "fsrm",         OPERANDS_REG_REG         )
+
+#define PSEUDO_LIST_32D_64D \
+    X(PSEUDO_FABS_D,        "fabs.d",       OPERANDS_REG_REG         ) \
+    X(PSEUDO_FMV_D,         "fmv.d",        OPERANDS_REG_REG         ) \
+    X(PSEUDO_FNEG_D,        "fneg.d",       OPERANDS_REG_REG         )
+
+#define PSEUDO_LIST \
+    PSEUDO_LIST_32I_64I \
+    PSEUDO_LIST_32I \
+    PSEUDO_LIST_64I
+
+#define INST_LIST_32I \
     X(MNEM_LUI,     "lui",      FMT_U,  OPERANDS_REG_NUM,           0x00000037) \
     X(MNEM_AUIPC,   "auipc",    FMT_U,  OPERANDS_REG_NUM,           0x00000017) \
     X(MNEM_JAL,     "jal",      FMT_J,  OPERANDS_REG_OFFSET,        0x0000006f) \
@@ -102,6 +139,20 @@ extern uint32_t opcodes[];
     X(MNEM_CSRRWI,  "csrrwi",   FMT_I,  OPERANDS_REG_CSR_NUM,       0x00005073) \
     X(MNEM_CSRRSI,  "csrrsi",   FMT_I,  OPERANDS_REG_CSR_NUM,       0x00006073) \
     X(MNEM_CSRRCI,  "csrrci",   FMT_I,  OPERANDS_REG_CSR_NUM,       0x00007073)
+
+#define INST_LIST_64I \
+    X(MNEM_LWU,     "lwu",      FMT_I,  OPERANDS_REG_NUM_REG,       0x00006003) \
+    X(MNEM_LD,      "ld",       FMT_I,  OPERANDS_REG_NUM_REG,       0x00003003) \
+    X(MNEM_SD,      "sd",       FMT_S,  OPERANDS_REG_NUM_REG,       0x00003023) \
+    X(MNEM_ADDIW,   "addiw",    FMT_I,  OPERANDS_REG_REG_NUM,       0x0000001b) \
+    X(MNEM_SLLIW,   "slliw",    FMT_I,  OPERANDS_REG_REG_NUM,       0x0000101b) \
+    X(MNEM_SRLIW,   "srliw",    FMT_I,  OPERANDS_REG_REG_NUM,       0x0000501b) \
+    X(MNEM_SRAIW,   "sraiw",    FMT_I,  OPERANDS_REG_REG_NUM,       0x4000501b) \
+    X(MNEM_ADDW,    "addw",     FMT_R,  OPERANDS_REG_REG_REG,       0x0000003b) \
+    X(MNEM_SUBW,    "subw",     FMT_R,  OPERANDS_REG_REG_REG,       0x4000003b) \
+    X(MNEM_SLLW,    "sllw",     FMT_R,  OPERANDS_REG_REG_REG,       0x0000103b) \
+    X(MNEM_SRLW,    "srlw",     FMT_R,  OPERANDS_REG_REG_REG,       0x0000503b) \
+    X(MNEM_SRAW,    "sraw",     FMT_R,  OPERANDS_REG_REG_REG,       0x4000503b)
 
 #define INST_LIST_M \
     X(MNEM_MUL,     "mul",      FMT_R,  OPERANDS_REG_REG_REG,       0x02000033) \
@@ -155,7 +206,8 @@ extern uint32_t opcodes[];
     X(MNEM_C_FSWSP,     "c.fswsp",      FMT_CSS,    OPERANDS_REG_NUM_REG,   0xe002)
 
 #define INST_LIST \
-    INST_LIST_I         \
+    INST_LIST_32I       \
+    INST_LIST_64I       \
     INST_LIST_M         \
     INST_LIST_IC        \
     INST_LIST_RV32DC    \

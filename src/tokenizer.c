@@ -28,9 +28,13 @@ static const char * token_strs[] = {
 };
 #endif
 
-#if 0
 #define X CONST_STRING
 static String directives[] = {
+    X(".file"),
+    X(".attribute"),
+    X(".type"),
+    X(".size"),
+    X(".zero"),
     X(".text"),
     X(".data"),
     X(".bss"),
@@ -50,7 +54,6 @@ static String directives[] = {
 #undef X
 
 static const size_t num_directives = NELEM(directives);
-#endif
 
 #define X CONST_STRING
 static String csr_names[] = {
@@ -124,8 +127,10 @@ get_mnemonic_etc(Tokenizer * tz)
     CHECK_LIST(csr_names,           TOK_CSR);
 #undef CHECK_LIST
     if (tok.type == TOK_NONE) {
-        if (contains_period)
+        if (contains_period) {
+            fprintf(stderr, "identifier contains period on line number %d: %.*s\n", tz->ln, LEN_DATA(tok.str));
             assert(0); // TODO: error-handling
+        }
         tok.type = TOK_IDENT;
     }
     
@@ -173,7 +178,7 @@ get_string(Tokenizer * tz)
 static Token
 get_directive(Tokenizer * tz)
 {
-    Token tok = init_token(tz, TOK_DIR);
+    Token tok = init_token(tz, TOK_IDENT);
 
     tokenizer_advance(tz); // skip .
     tok.str.len++;
@@ -186,7 +191,12 @@ get_directive(Tokenizer * tz)
         tok.str.len++;
     }
 
-    // TODO: check directives list
+    for (size_t i = 0; i < num_directives; i++) {
+        if (string_equal(tok.str, directives[i])) {
+            tok.type = TOK_DIR;
+            break;
+        }
+    }
 
     return tok;
 }
