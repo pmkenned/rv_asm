@@ -11,6 +11,8 @@
 #include <stdbool.h>
 #include <limits.h>
 
+#define STR(X) #X
+
 #define MAX_TOKENS_PER_LINE 10
 #define MAX_PSEUDO_EXPAND 3
 
@@ -757,6 +759,8 @@ parse_directive(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_
     } else if (string_equal(tokens[0].str, STRING(".globl"))) {
         tokens_match_or_die(tokens, num_tokens, "d i", ln);
         // TODO
+    } else if (string_equal(tokens[0].str, STRING(".section"))) {
+        // TODO
     } else if (string_equal(tokens[0].str, STRING(".text"))) {
         tokens_match_or_die(tokens, num_tokens, "d", ln);
         // TODO
@@ -818,12 +822,24 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
 
     // TODO: tokens_match_or_die() based on OPERANDS_
 
+#define M(MNEM) expanded_tokens[nr][nt++] = (Token) { .type=TOK_MNEM,   .str=STRING(MNEM) }
+#define S(SYN)  expanded_tokens[nr][nt++] = (Token) { .type=SYN[0],     .str=STRING(SYN)  }
+#define R(REG)  expanded_tokens[nr][nt++] = (Token) { .type=TOK_REG,    .str=STRING(REG)  }
+#define N(NUM)  expanded_tokens[nr][nt++] = (Token) { .type=TOK_NUM,    .str=STRING(STR(NUM)) }
+#define T(TI)   expanded_tokens[nr][nt++] = tokens[TI]
+#define END_ROW (num_expanded_tokens[nr++] = nt, nt = 0)
+
+    size_t nt = 0;
+    size_t nr = 0;
+
     Pseudo pseudo = which_pseudo(tokens[0].str);
     switch (pseudo) {
         case PSEUDO_BEQZ:
             // beqz rs1, offset
             // - beq  rs1, x0, offset
-            assert(0); // TODO
+            M("beq"); T(1); S(","); R("x0"); T(3); END_ROW;
+            return nr;
+            //assert(0); // TODO
         case PSEUDO_BGEZ:
             // bgez     rs1, offset
             // - bge    rs1, x0, offset
@@ -847,7 +863,8 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
         case PSEUDO_BLEU:
             // bleu     rs1, rs2, offset
             // - bgeu   rs2, rs1, offset
-            assert(0); // TODO
+            M("bgeu"); T(3); S(","); T(1); S(","); T(5); END_ROW;
+            return nr;
         case PSEUDO_BLEZ:
             // blez     rs2, offset
             // - bge    x0, rs2, offset
@@ -864,7 +881,14 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
             // call     rd, symbol
             // - auipc  rd, offsetHi
             // - jalr rd, offsetLo(rd) ; if rd is omitted, x1
-            assert(0); // TODO
+            if (num_tokens == 4) {
+                M("auipc"); T(1); S(","); N(0); // TODO: offsetHi
+                M("jalr"); T(1); S(","); N(0); S("("); T(1); S(")"); END_ROW;
+                return nr;
+            } else if (num_tokens == 2) {
+                assert(0);
+            }
+            assert(0);
         case PSEUDO_CSRR:
             // csrr     rd, csr
             // - csrrs  rd, csr, x0
@@ -896,12 +920,15 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
         case PSEUDO_J:
             // j        offset
             // - jal    x0, offset
-            expanded_tokens[0][0] = (Token) { .type=TOK_MNEM,   .str=STRING("jal") };
-            expanded_tokens[0][1] = (Token) { .type=TOK_REG,    .str=STRING("x0")  };
-            expanded_tokens[0][2] = (Token) { .type=',',        .str=STRING(",")   };
-            expanded_tokens[0][3] = tokens[1];
-            num_expanded_tokens[0] = 4;
-            return 1;
+
+            M("jal"); R("x0"); S(","); T(1); END_ROW;
+
+            //expanded_tokens[0][0] = (Token) { .type=TOK_MNEM,   .str=STRING("jal") };
+            //expanded_tokens[0][1] = (Token) { .type=TOK_REG,    .str=STRING("x0")  };
+            //expanded_tokens[0][2] = (Token) { .type=',',        .str=STRING(",")   };
+            //expanded_tokens[0][3] = tokens[1];
+            //num_expanded_tokens[0] = 4;
+            return nr;
 
         case PSEUDO_JR:
             // jr       rs1
@@ -977,7 +1004,20 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
         case PSEUDO_LI:
             // li       rd, imm
             // RV32I: lui and/or addi
-            assert(0); // TODO
+            // RV64I: lui, addi, slli, addi, slli, addi, slli, addi
+            if (isa == ISA_RV32) {
+                // TODO
+                M("lui"); T(1); S(","); N(0); END_ROW;
+                M("addi"); T(1); S(","); T(1); S(","); N(0); END_ROW;
+                return nr;
+            } else if (isa == ISA_RV64) {
+                // TODO
+                M("lui"); T(1); S(","); N(0); END_ROW;
+                M("addi"); T(1); S(","); T(1); S(","); N(0); END_ROW;
+                return nr;
+            } else {
+                assert(0);
+            }
         case PSEUDO_LLA:
             // lla      rd, symbol
             // - auipc    rd, offsetHi
@@ -998,7 +1038,8 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
         case PSEUDO_MV:
             // mv   rd, rs1
             // - addi rd, rs1, 0
-            assert(0); // TODO
+            M("addi"); T(1); S(","); T(3); S(","); N(0); END_ROW;
+            return nr;
         case PSEUDO_NEG:
             // neg  rd, rs2
             // - sub  rd, x0, rs2
@@ -1107,6 +1148,10 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
         default:
             die("error: unsupported pseudoinstruction '%.*s' on line %d\n", LEN_DATA(tokens[0].str), ln);
     }
+#undef M
+#undef S
+#undef R
+#undef T
     return 0;
 }
 
