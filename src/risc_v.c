@@ -92,6 +92,41 @@ String reg_names[] = {
     X("t6"),
     X("fp") // same as s0
 };
-#undef X
-
 const size_t num_reg_names = NELEM(reg_names);
+
+String fp_reg_names[] = {
+    X("f0"),
+    X("f1"),
+    X("f2"),
+    X("f3"),
+    X("f4"),
+    X("f5"),
+    X("f6"),
+    X("f7"),
+    X("f8"),
+    X("f9"),
+    X("f10"),
+    X("f11"),
+    X("f12"),
+    X("f13"),
+    X("f14"),
+    X("f15"),
+    X("f16"),
+    X("f17"),
+    X("f18"),
+    X("f19"),
+    X("f20"),
+    X("f21"),
+    X("f22"),
+    X("f23"),
+    X("f24"),
+    X("f25"),
+    X("f26"),
+    X("f27"),
+    X("f28"),
+    X("f29"),
+    X("f30"),
+    X("f31"),
+};
+const size_t num_fp_reg_names = NELEM(fp_reg_names);
+#undef X

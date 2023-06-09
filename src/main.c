@@ -403,6 +403,7 @@ tokens_match(Token * tokens, size_t num_tokens, const char * fmt)
             case 'd':  if (tt != TOK_DIR)       return false; break;
             case 'm':  if (tt != TOK_MNEM)      return false; break;
             case 'r':  if (tt != TOK_REG)       return false; break;
+            case 'f':  if (tt != TOK_FP_REG)    return false; break;
             case 'c':  if (tt != TOK_CSR)       return false; break;
             case 'n':  if (tt != TOK_NUM)       return false; break;
             case 'i':  if (tt != TOK_IDENT)     return false; break;
@@ -540,7 +541,7 @@ parse_instr(Token * tokens, size_t num_tokens, Buffer * output, size_t curr_addr
             }
             rd  = reg_name_to_bits(tokens[1].str, ln);
             imm = parse_int_or_die(tokens[3].str, ln);
-            if ((imm < 0) || (imm > 0xfffff))
+            if (format_of_instr[mnemonic] == FMT_U && ((imm < 0) || (imm > 0xfffff)))
                 die("error: lui immediate must be in range 0..1048575 on line %d\n", ln);
             imm_fmt = compressed ? ci_fmt_imm(imm) : u_fmt_imm(imm);
             opcode |= imm_fmt | (rd << 7);
@@ -825,6 +826,7 @@ substitute_pseudoinstr(Token expanded_tokens[][MAX_TOKENS_PER_LINE], size_t num_
 #define M(MNEM) expanded_tokens[nr][nt++] = (Token) { .type=TOK_MNEM,   .str=STRING(MNEM) }
 #define S(SYN)  expanded_tokens[nr][nt++] = (Token) { .type=SYN[0],     .str=STRING(SYN)  }
 #define R(REG)  expanded_tokens[nr][nt++] = (Token) { .type=TOK_REG,    .str=STRING(REG)  }
+#define F(REG)  expanded_tokens[nr][nt++] = (Token) { .type=TOK_FP_REG, .str=STRING(REG)  }
 #define N(NUM)  expanded_tokens[nr][nt++] = (Token) { .type=TOK_NUM,    .str=STRING(STR(NUM)) }
 #define T(TI)   expanded_tokens[nr][nt++] = tokens[TI]
 #define END_ROW (num_expanded_tokens[nr++] = nt, nt = 0)
@@ -1187,11 +1189,11 @@ compress_if_possible(Token * tokens, size_t num_tokens, int ln)
         int rs1 = reg_name_to_bits(tokens[3].str, ln);
         int imm = parse_int_or_die(tokens[5].str, ln);
         // TODO: confirm bounds check on imm
-        if ((rs1 == 0) && (imm < 64)) {
+        if ((rs1 == 0) && (imm >= -32 && imm < 32)) {
             tokens[0].str = STRING("c.li");
             tokens[3] = tokens[5];
             num_tokens -= 2;
-        } else if ((rd == rs1) && (imm < 64)) {
+        } else if ((rd == rs1) && (imm >= -32 && imm < 32)) {
             tokens[0].str = STRING("c.addi");
             tokens[3] = tokens[5];
             num_tokens -= 2;
@@ -1225,7 +1227,8 @@ compress_if_possible(Token * tokens, size_t num_tokens, int ln)
         // - c.andi rd, imm       when rd=rs1
         int rd = reg_name_to_bits(tokens[1].str, ln);
         int rs1 = reg_name_to_bits(tokens[3].str, ln);
-        if ((rd == rs1) && (rd >= 8)) {
+        int imm = parse_int_or_die(tokens[5].str, ln);
+        if ((rd == rs1) && (rd >= 8) && (imm >= -32 && imm < 32)) {
             tokens[0].str = STRING("c.andi");
             tokens[1].str = reg_names[rd-8];
             tokens[3] = tokens[5];

@@ -9,6 +9,8 @@ extern String pseudo_mnemonics[];
 extern const size_t num_pseudo_mnemonics;
 extern String reg_names[];
 extern const size_t num_reg_names;
+extern String fp_reg_names[];
+extern const size_t num_fp_reg_names;
 
 extern uint32_t opcodes[];
 
@@ -179,8 +181,8 @@ extern uint32_t opcodes[];
     X(MNEM_C_OR,        "c.or",         FMT_CR,     OPERANDS_REG_REG,       0x8c41) \
     X(MNEM_C_AND,       "c.and",        FMT_CR,     OPERANDS_REG_REG,       0x8c61) \
     X(MNEM_C_J,         "c.j",          FMT_CJ,     OPERANDS_OFFSET,        0xa001) \
-    X(MNEM_C_BEQZ,      "c.beqz",       FMT_CB,     OPERANDS_REG_NUM,       0xc001) \
-    X(MNEM_C_BNEZ,      "c.bnez",       FMT_CB,     OPERANDS_REG_NUM,       0xe001) \
+    X(MNEM_C_BEQZ,      "c.beqz",       FMT_CB,     OPERANDS_REG_OFFSET,    0xc001) \
+    X(MNEM_C_BNEZ,      "c.bnez",       FMT_CB,     OPERANDS_REG_OFFSET,    0xe001) \
     X(MNEM_C_ADDI4SPN,  "c.addi4spn",   FMT_CIW,    OPERANDS_REG_REG_NUM,   0x0000) \
     X(MNEM_C_LW,        "c.lw",         FMT_CL,     OPERANDS_REG_NUM_REG,   0x4000) \
     X(MNEM_C_SW,        "c.sw",         FMT_CL,     OPERANDS_REG_NUM_REG,   0xc000) \

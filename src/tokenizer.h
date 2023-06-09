@@ -8,6 +8,7 @@ typedef enum {
     TOK_MNEM,
     TOK_PSEUDO,
     TOK_REG,
+    TOK_FP_REG,
     TOK_CSR,
     TOK_NUM,
     TOK_IDENT,

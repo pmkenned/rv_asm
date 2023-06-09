@@ -20,6 +20,7 @@ static const char * token_strs[] = {
     [TOK_MNEM]      = "MNEM",
     [TOK_PSEUDO]    = "PSEUDO",
     [TOK_REG]       = "REG",
+    [TOK_FP_REG]    = "FP_REG",
     [TOK_CSR]       = "CSR",
     [TOK_NUM]       = "NUM",
     [TOK_IDENT]     = "IDENT",
@@ -101,13 +102,13 @@ get_mnemonic_etc(Tokenizer * tz)
 {
     Token tok = init_token(tz, TOK_NONE);
 
-    bool contains_period = false;
+    //bool contains_period = false;
     while (1) {
         char c = tokenizer_get_curr_char(tz);
         if (!isalnum(c) && c != '_' && c != '.')
             break;
-        if (c == '.')
-            contains_period = true;
+        //if (c == '.')
+        //    contains_period = true;
         tokenizer_advance(tz);
         tok.str.len++;
     }
@@ -125,19 +126,19 @@ get_mnemonic_etc(Tokenizer * tz)
     CHECK_LIST(mnemonics,           TOK_MNEM);
     CHECK_LIST(pseudo_mnemonics,    TOK_PSEUDO);
     CHECK_LIST(csr_names,           TOK_CSR);
+    CHECK_LIST(fp_reg_names,        TOK_FP_REG);
 #undef CHECK_LIST
     if (tok.type == TOK_NONE) {
-        if (contains_period) {
-            fprintf(stderr, "identifier contains period on line number %d: %.*s\n", tz->ln, LEN_DATA(tok.str));
-            assert(0); // TODO: error-handling
-        }
+        //if (contains_period) {
+        //    fprintf(stderr, "identifier contains period on line number %d: %.*s\n", tz->ln, LEN_DATA(tok.str));
+        //    assert(0); // TODO: error-handling
+        //}
         tok.type = TOK_IDENT;
     }
     
     return tok;
 }
 
-// TODO: handle base 8 and 16
 static Token
 get_number(Tokenizer * tz)
 {
@@ -169,6 +170,7 @@ get_number(Tokenizer * tz)
         if (is_hex && !isxdigit(c))
             break;
         else if (is_oct && (c < '0' || c > '7'))
+            // TODO: handle invalid octal (digits 8, 9)
             break;
         else if (!is_hex && !is_oct && !isdigit(c))
             break;
