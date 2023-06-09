@@ -148,9 +148,29 @@ get_number(Tokenizer * tz)
         tokenizer_advance(tz);
         tok.str.len++;
     }
+
+    bool is_hex = false;
+    bool is_oct = false;
+    if (tokenizer_get_curr_char(tz) == '0') {
+        tokenizer_advance(tz);
+        tok.str.len++;
+        char c = tokenizer_get_curr_char(tz);
+        if (c == 'x' || c == 'X') {
+            is_hex = true;
+            tokenizer_advance(tz);
+            tok.str.len++;
+        } else if (isdigit(c)) {
+            is_oct = true;
+        }
+    }
+
     while (1) {
         char c = tokenizer_get_curr_char(tz);
-        if (!isdigit(c))
+        if (is_hex && !isxdigit(c))
+            break;
+        else if (is_oct && (c < '0' || c > '7'))
+            break;
+        else if (!is_hex && !is_oct && !isdigit(c))
             break;
         tokenizer_advance(tz);
         tok.str.len++;
