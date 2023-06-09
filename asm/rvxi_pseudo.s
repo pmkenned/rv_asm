@@ -26,9 +26,7 @@ csrwi       csr, zimm[4:0]      # csrrwi x0, csr, zimm
 j           offset              # jal x0, offset
 jr          rs1                 # jalr x0, 0(rs1)
 la          rd, symbol          # RV32I: auipc rd, offsetHi; lw rd, offsetLo(rd)
-la          rd, symbol          # RV64I: auipc rd, offsetHi; ld rd, offsetLo(rd)
 li          rd, imm             # RV32I: lui and/or addi
-li          rd, imm             # RV64I: lui, addi, slli, addi, slli, addi, slli, addi
 lla         rd, symbol          # auipc rd, offsetHi; addi rd, rd, offsetLo
 mv          rd, rs1             # addi rd, rs1, 0
 neg         rd, rs2             # sub rd, x0, rs2
@@ -42,27 +40,4 @@ seqz        rd, rs1             # sltiu rd, rs1, 1
 sgtz        rd, rs2             # slt rd, x0, rs2
 sltz        rd, rs1             # slt rd, rs1, x0
 snez        rd, rs2             # sltu rd, x0, rs2
-sub         rd, rs1, rs2        # c.sub rd, rs2
 tail        symbol              # auipc x6, offsetHi; jalr x0, offsetLo(x6)
-
-### RV32I only:
-rdcycleh                        # csrrs rd, cycleh, x0
-rdinstreth                      # csrrs rd, instreth, x0
-rdtimeh                         # csrrs rd, timeh, x0
-
-### RV64I only:
-negw        rd, rs2             # subw rd, x0, rs2
-sext.w      rd, rs1             # addiw rd, rs1, 0
-
-### RV32F and RV64F:
-fneg.s      rd, rs1             # fsgnj.s rd, rs1, rs1
-frcsr       rd                  # csrrs   rd, fcsr, x0
-frflags     rd                  # csrrs   rd, fflags, x0
-frrm        rd                  # csrrs   rd, frm, x0
-fscsr       rd, rs1             # csrrw   rd, fcsr, rs1       ; if rd is omitted, x0
-fsflags     rd, rs1             # csrrw   rd, fflags          ; if rd is omitted, x0
-fsrm        rd, rs1             # csrrw   rd, frm, rs1        ; if rd is omitted, x0
-
-### RV32D and RV64D:
-fmv.d       rd, rs1             # fsgnj.d rd, rs1, rs1
-fneg.d      rd, rs1             # fsgnj.d rd, rs1, rs1
